@@ -7,10 +7,11 @@ import { type ChipTier } from "./shopData";
 
 export const TELEMETRY = {
   activeFollowers: 1_847,
-  secondaryRoyaltiesTotal: 284_50, // cents
-  secondaryRoyaltiesThisMonth: 63_20,
-  edgeNodeStatus: "CONNECTED" as "CONNECTED" | "DEGRADED" | "OFFLINE",
-  edgeNodeLatencyMs: 42,
+  secondaryRoyaltiesTotal: 284_50, // cents ($284.50)
+  secondaryRoyaltiesThisMonth: 63_20, // cents ($63.20)
+  mtdRevenue: 6320_00, // cents ($6,320.00 MTD revenue)
+  edgeNodeStatus: "ONLINE" as "ONLINE" | "CONNECTED" | "DEGRADED" | "OFFLINE",
+  edgeNodeLatencyMs: 12, // 12ms edge latency
   pendingMints: 3,
   activeSessions: 11,
 };
@@ -97,7 +98,7 @@ export const INVENTORY_ITEMS: InventoryItem[] = [
 
 // ─── NFC Chip Batch Queue ─────────────────────────────────────────────────────
 
-export type ChipLockState = "UNLOCKED" | "PASSWORD_PROTECTED" | "LOCK_BITS_SET";
+export type ChipLockState = "UNLOCKED" | "PASSWORD_PROTECTED" | "LOCKED_BITS" | "LOCK_BITS_SET";
 
 export interface NfcChipEntry {
   uid: string;
