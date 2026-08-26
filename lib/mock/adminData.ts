@@ -312,3 +312,250 @@ export const POS_TRANSACTIONS: POSTransaction[] = [
     qrScanned: false,
   },
 ];
+
+// ─── Booth Installations & Interactive Engine ─────────────────────────────────
+
+export interface BoothInstallation {
+  id: string;
+  name: string;
+  type: string;
+  chipCount: number;
+  status: "ONLINE" | "OFFLINE" | "DEGRADED";
+  lastPing: string;
+  location: string;
+  triggerCount: number;
+  hardwareUid: string;
+  stationIp: string;
+  readerModel: string;
+}
+
+export const MOCK_INSTALLATIONS: BoothInstallation[] = [
+  {
+    id: "inst_001",
+    name: "Booth 14 — Portland Saturday Market",
+    type: "Interactive Shoppable Booth Engine",
+    chipCount: 8,
+    status: "ONLINE",
+    lastPing: "just now",
+    location: "Hawthorne District · PDX",
+    triggerCount: 148,
+    hardwareUid: "PN532-PDX-BOOTH-14",
+    stationIp: "192.168.4.101",
+    readerModel: "NXP PN532 Dynamic NFC + Micro-QR Scanner",
+  },
+  {
+    id: "inst_002",
+    name: "Studio Kiosk — Forge HQ",
+    type: "Craft Workshop Check-In Kiosk",
+    chipCount: 24,
+    status: "ONLINE",
+    lastPing: "3m ago",
+    location: "Inner SE Portland · OR",
+    triggerCount: 64,
+    hardwareUid: "RC522-HQ-STUDIO-02",
+    stationIp: "192.168.1.55",
+    readerModel: "NTAG424 High-Field Induction Terminal",
+  },
+  {
+    id: "inst_003",
+    name: "Maker Faire Showcase — Hall B",
+    type: "Exhibition Event Installation",
+    chipCount: 16,
+    status: "OFFLINE",
+    lastPing: "3d ago",
+    location: "Portland Expo Center",
+    triggerCount: 382,
+    hardwareUid: "NXP-FAIRE-HALL-B",
+    stationIp: "10.0.12.8",
+    readerModel: "Multi-Protocol Dual-Antenna Array",
+  },
+];
+
+// ─── Guestbook Mode Data ──────────────────────────────────────────────────────
+
+export type AttendeeTier = "COZY_MEMBER" | "VERIFIED_MAKER" | "VIP_COLLECTOR" | "GUEST";
+export type CheckInTapType = "NTAG424_TAP" | "NTAG215_TAP" | "QR_SCAN" | "MANUAL_CHECKIN";
+
+export interface GuestbookEntry {
+  id: string;
+  attendeeHandle: string;
+  attendeeName: string;
+  avatarInitials: string;
+  verifiedTier: AttendeeTier;
+  comment: string;
+  timestamp: number; // Unix ms
+  tapType: CheckInTapType;
+  stationId: string;
+  tapCount: number;
+  badgeEarned?: string;
+}
+
+export const INITIAL_GUESTBOOK_ENTRIES: GuestbookEntry[] = [
+  {
+    id: "gb_001",
+    attendeeHandle: "@ironwood_maren",
+    attendeeName: "Maren Vance",
+    avatarInitials: "MV",
+    verifiedTier: "VIP_COLLECTOR",
+    comment: "Picked up the Gen 1 copper keyring! The patina beeswax finish is stellar in person.",
+    timestamp: Date.now() - 45_000,
+    tapType: "NTAG424_TAP",
+    stationId: "inst_001",
+    tapCount: 4,
+    badgeEarned: "Heritage Maker Patron",
+  },
+  {
+    id: "gb_002",
+    attendeeHandle: "@dustpan_studios",
+    attendeeName: "Dustpan Studios",
+    avatarInitials: "DS",
+    verifiedTier: "VERIFIED_MAKER",
+    comment: "Inspiring NFC CMAC integration on Horween leather. Love the craftsmanship!",
+    timestamp: Date.now() - 180_000,
+    tapType: "NTAG424_TAP",
+    stationId: "inst_001",
+    tapCount: 2,
+    badgeEarned: "Craftsman Guild Fellow",
+  },
+  {
+    id: "gb_003",
+    attendeeHandle: "@solstice_made",
+    attendeeName: "Elena Solstice",
+    avatarInitials: "ES",
+    verifiedTier: "COZY_MEMBER",
+    comment: "Stopping by from the Eastside Maker Guild! Testing out the spatial shoppable pins.",
+    timestamp: Date.now() - 420_000,
+    tapType: "QR_SCAN",
+    stationId: "inst_001",
+    tapCount: 1,
+    badgeEarned: "Market Explorer",
+  },
+  {
+    id: "gb_004",
+    attendeeHandle: "@threadline_co",
+    attendeeName: "Lucas Grey",
+    avatarInitials: "LG",
+    verifiedTier: "COZY_MEMBER",
+    comment: "The Horween Dublin bifold hand-stitching with Fil Au Chinois thread is pristine.",
+    timestamp: Date.now() - 950_000,
+    tapType: "NTAG215_TAP",
+    stationId: "inst_001",
+    tapCount: 3,
+  },
+  {
+    id: "gb_005",
+    attendeeHandle: "@grove_supply",
+    attendeeName: "Kai Thorne",
+    avatarInitials: "KT",
+    verifiedTier: "GUEST",
+    comment: "First time seeing physical craft paired with on-chain secondary royalties. Super cool.",
+    timestamp: Date.now() - 1_650_000,
+    tapType: "NTAG424_TAP",
+    stationId: "inst_001",
+    tapCount: 1,
+  },
+];
+
+// ─── Raffle Rub Mode Data ─────────────────────────────────────────────────────
+
+export interface RaffleRewardTier {
+  id: string;
+  name: string;
+  discountPercent: number;
+  description: string;
+  codePrefix: string;
+  weight: number; // 0-100 relative weight
+  badge: string;
+}
+
+export const RAFFLE_REWARD_TIERS: RaffleRewardTier[] = [
+  {
+    id: "tier_grand",
+    name: "Grand Prize: Gen 1 Copper Keyring (Free)",
+    discountPercent: 100,
+    description: "100% Off voucher code for a handcrafted NTAG424 DNA Blackened Copper Keyring.",
+    codePrefix: "GOLD-KEY",
+    weight: 5,
+    badge: "GRAND PRIZE",
+  },
+  {
+    id: "tier_first",
+    name: "Tier 1: 25% Off Next Forge Order",
+    discountPercent: 25,
+    description: "25% discount code applied at booth POS terminal or online store.",
+    codePrefix: "FORGE-25",
+    weight: 30,
+    badge: "25% OFF",
+  },
+  {
+    id: "tier_second",
+    name: "Tier 2: 10% Off In-Booth Merchandise",
+    discountPercent: 10,
+    description: "10% instant discount code for today's physical booth transactions.",
+    codePrefix: "BOOTH-10",
+    weight: 65,
+    badge: "10% OFF",
+  },
+];
+
+export interface RaffleAttempt {
+  id: string;
+  attendeeHandle: string;
+  timestamp: number;
+  outcome: "WIN" | "LOSS";
+  prizeWon?: string;
+  rewardCode?: string;
+  discountPercent?: number;
+  dispatchStatus: "CLAIMED" | "DISPATCHED" | "EXPIRED";
+  qrPayload?: string;
+}
+
+export const INITIAL_RAFFLE_ATTEMPTS: RaffleAttempt[] = [
+  {
+    id: "raf_001",
+    attendeeHandle: "@ironwood_maren",
+    timestamp: Date.now() - 90_000,
+    outcome: "WIN",
+    prizeWon: "Tier 1: 25% Off Next Forge Order",
+    rewardCode: "MV-FORGE-25-8A4C2E",
+    discountPercent: 25,
+    dispatchStatus: "CLAIMED",
+    qrPayload: "mv://reward/MV-FORGE-25-8A4C2E",
+  },
+  {
+    id: "raf_002",
+    attendeeHandle: "@solstice_made",
+    timestamp: Date.now() - 320_000,
+    outcome: "LOSS",
+    dispatchStatus: "EXPIRED",
+  },
+  {
+    id: "raf_003",
+    attendeeHandle: "@dustpan_studios",
+    timestamp: Date.now() - 750_000,
+    outcome: "WIN",
+    prizeWon: "Tier 2: 10% Off In-Booth Merchandise",
+    rewardCode: "MV-BOOTH-10-3F19D0",
+    discountPercent: 10,
+    dispatchStatus: "DISPATCHED",
+    qrPayload: "mv://reward/MV-BOOTH-10-3F19D0",
+  },
+  {
+    id: "raf_004",
+    attendeeHandle: "@threadline_co",
+    timestamp: Date.now() - 1_200_000,
+    outcome: "LOSS",
+    dispatchStatus: "EXPIRED",
+  },
+  {
+    id: "raf_005",
+    attendeeHandle: "@grove_supply",
+    timestamp: Date.now() - 2_100_000,
+    outcome: "WIN",
+    prizeWon: "Grand Prize: Gen 1 Copper Keyring (Free)",
+    rewardCode: "MV-GOLD-KEY-99F7A1",
+    discountPercent: 100,
+    dispatchStatus: "CLAIMED",
+    qrPayload: "mv://reward/MV-GOLD-KEY-99F7A1",
+  },
+];
