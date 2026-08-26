@@ -11,6 +11,7 @@ type BadgeVariant =
   | StockStatus
   | TxStatus
   | POSMode
+  | "ONLINE"
   | "CONNECTED"
   | "DEGRADED"
   | "OFFLINE"
@@ -30,6 +31,8 @@ const VARIANT_STYLES: Record<BadgeVariant, string> = {
     "bg-white/10 text-white/50 border-white/10",
   PASSWORD_PROTECTED:
     "bg-orange-500/15 text-orange-400 border-orange-500/30",
+  LOCKED_BITS:
+    "bg-purple-500/15 text-purple-400 border-purple-500/30",
   LOCK_BITS_SET:
     "bg-purple-500/15 text-purple-400 border-purple-500/30",
   // Stock
@@ -54,6 +57,8 @@ const VARIANT_STYLES: Record<BadgeVariant, string> = {
   LOW_TOUCH:
     "bg-sky-500/15 text-sky-400 border-sky-500/30",
   // Edge node
+  ONLINE:
+    "bg-emerald-500/15 text-emerald-400 border-emerald-500/30",
   CONNECTED:
     "bg-emerald-500/15 text-emerald-400 border-emerald-500/30",
   DEGRADED:
@@ -71,14 +76,19 @@ const VARIANT_LABELS: Partial<Record<BadgeVariant, string>> = {
   ACTIVE_HOLD: "Active Hold",
   PAYMENT_RETRYING: "Retrying Payment",
   EXPIRED_RELEASE: "Expired · Released",
+  UNLOCKED: "Unlocked",
   PASSWORD_PROTECTED: "PW Protected",
+  LOCKED_BITS: "Locked Bits",
   LOCK_BITS_SET: "Lock Bits Set",
   MINT_PENDING: "Mint Pending",
   MINT_COMPLETE: "Mint Complete",
   BATCH_QUEUED: "Batch Queued",
   HIGH_TOUCH: "High-Touch",
   LOW_TOUCH: "Low-Touch",
+  ONLINE: "Online",
   CONNECTED: "Edge Connected",
+  DEGRADED: "Degraded",
+  OFFLINE: "Offline",
   COZY_MEMBER: "Cozy Member",
 };
 
