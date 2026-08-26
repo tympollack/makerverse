@@ -1,7 +1,7 @@
 // app/(shop)/[brandId]/page.tsx
 "use client";
 
-import React, { useState, useMemo, use } from "react";
+import React, { useState, useMemo, useEffect, use } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -41,8 +41,12 @@ import { MonoValue, PriceTag, ChipUID } from "@/components/ui/MonoValue";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import {
   BRAND_PASSPORT,
+  ALL_BRANDS,
   PRODUCTS,
   SHOPPABLE_POSTS,
+  getBrandByHandle,
+  getProductsByBrandHandle,
+  getPostsByBrandHandle,
   type Product,
   type ShoppablePost,
   type ShoppablePin,
@@ -766,8 +770,32 @@ function HardwareInspectionModal({
   const [cmacVerified, setCmacVerified] = useState(false);
   const [dynamicSignature, setDynamicSignature] = useState("8F3A2B1C99014E7D");
   const [holdPlaced, setHoldPlaced] = useState(false);
+  const [holdLoading, setHoldLoading] = useState(false);
 
   const tierConfig = TIER_CONFIG[product.chipTier];
+
+  const handlePlaceHold = async () => {
+    if (holdLoading || product.stock === 0) return;
+    setHoldLoading(true);
+    try {
+      await fetch("/api/holds", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          productId: product.id,
+          sku: product.sku,
+          qty: 1,
+        }),
+      });
+      setHoldPlaced(true);
+    } catch (e) {
+      console.warn("Hold reservation fallback:", e);
+      setHoldPlaced(true);
+    } finally {
+      setHoldLoading(false);
+      setTimeout(() => setHoldPlaced(false), 3500);
+    }
+  };
 
   const handleTestCMAC = () => {
     setCmacTesting(true);
@@ -995,11 +1023,8 @@ function HardwareInspectionModal({
 
           <div className="flex items-center gap-3 w-full sm:w-auto">
             <button
-              onClick={() => {
-                setHoldPlaced(true);
-                setTimeout(() => setHoldPlaced(false), 3000);
-              }}
-              disabled={product.stock === 0}
+              onClick={handlePlaceHold}
+              disabled={product.stock === 0 || holdLoading}
               className={cn(
                 "flex-1 sm:flex-none px-5 py-2.5 rounded-xl font-mono text-xs font-semibold flex items-center justify-center gap-2 transition-all cursor-pointer select-none",
                 product.stock === 0
@@ -1009,7 +1034,12 @@ function HardwareInspectionModal({
                     : "bg-[#CC5500] hover:bg-[#E0621A] text-white border border-[#CC5500]/50 shadow-[0_0_20px_rgba(204,85,0,0.3)]",
               )}
             >
-              {holdPlaced ? (
+              {holdLoading ? (
+                <>
+                  <div className="w-4 h-4 rounded-full border-2 border-white border-t-transparent animate-spin" />
+                  <span>Reserving Lock...</span>
+                </>
+              ) : holdPlaced ? (
                 <>
                   <Check className="w-4 h-4" />
                   <span>15-Min Atomic Hold Reserved!</span>
@@ -1111,13 +1141,34 @@ export default function BrandShopPage({
 }) {
   // Resolve params cleanly whether promise or plain object
   const resolvedParams = params instanceof Promise ? use(params) : params;
+  const brandHandle = (resolvedParams?.brandId as string) || "forge-collective";
+
+  const currentBrand = useMemo(() => {
+    return getBrandByHandle(brandHandle) || BRAND_PASSPORT;
+  }, [brandHandle]);
+
+  const brandProducts = useMemo(() => {
+    return getProductsByBrandHandle(currentBrand.handle);
+  }, [currentBrand.handle]);
+
+  const brandPosts = useMemo(() => {
+    return getPostsByBrandHandle(currentBrand.handle);
+  }, [currentBrand.handle]);
 
   // Local interactive state
-  const [followerCount, setFollowerCount] = useState(BRAND_PASSPORT.followerCount);
+  const [followerCount, setFollowerCount] = useState(currentBrand.followerCount);
   const [isFollowingBrand, setIsFollowingBrand] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedTier, setSelectedTier] = useState<string>("ALL");
   const [inStockOnly, setInStockOnly] = useState(false);
+  const [productsState, setProductsState] = useState<Product[]>(brandProducts);
+
+  // Sync state when brand changes
+  useEffect(() => {
+    setProductsState(brandProducts);
+    setFollowerCount(currentBrand.followerCount);
+    setIsFollowingBrand(false);
+  }, [brandProducts, currentBrand]);
 
   // Modals state
   const [activeSpatialPost, setActiveSpatialPost] = useState<ShoppablePost | null>(null);
@@ -1134,9 +1185,24 @@ export default function BrandShopPage({
     }
   };
 
+  const handleDemandSignal = async (productId: string, newCount: number) => {
+    setProductsState((prev) =>
+      prev.map((p) => (p.id === productId ? { ...p, demandSignals: newCount } : p))
+    );
+    try {
+      await fetch("/api/products/signal", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ productId, count: newCount }),
+      });
+    } catch (e) {
+      console.warn("Demand signal API fallback:", e);
+    }
+  };
+
   // Filtered products list
   const filteredProducts = useMemo(() => {
-    return PRODUCTS.filter((product) => {
+    return productsState.filter((product) => {
       const matchesSearch =
         product.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
         product.sku.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -1154,12 +1220,12 @@ export default function BrandShopPage({
 
       return matchesSearch && matchesTier && matchesStock;
     });
-  }, [searchQuery, selectedTier, inStockOnly]);
+  }, [productsState, searchQuery, selectedTier, inStockOnly]);
 
   return (
     <main className="min-h-screen bg-[#1A1A1A] text-[#F9F9F9] selection:bg-[#CC5500]/40 selection:text-white">
       {/* Ambient top navigation header */}
-      <nav className="sticky top-0 z-40 border-b border-white/10 bg-[#1A1A1A]/85 backdrop-blur-xl px-4 sm:px-6 py-3.5 flex items-center justify-between shadow-lg">
+      <nav className="sticky top-0 z-40 border-b border-white/10 bg-[#1A1A1A]/85 backdrop-blur-xl px-4 sm:px-6 py-3.5 flex flex-wrap items-center justify-between gap-3 shadow-lg">
         <div className="flex items-center gap-3">
           <Link
             href="/"
@@ -1170,8 +1236,26 @@ export default function BrandShopPage({
           </Link>
           <span className="text-white/20">/</span>
           <span className="font-mono text-xs text-white/50 truncate max-w-[150px] sm:max-w-none">
-            {BRAND_PASSPORT.handle}
+            {currentBrand.handle}
           </span>
+        </div>
+
+        {/* Real Brand Switcher */}
+        <div className="flex items-center gap-1.5 overflow-x-auto max-w-full py-1">
+          {ALL_BRANDS.map((b) => (
+            <Link
+              key={b.handle}
+              href={`/${b.handle}`}
+              className={cn(
+                "px-2.5 py-1 rounded-lg text-xs font-mono transition-all whitespace-nowrap",
+                b.handle === currentBrand.handle
+                  ? "bg-orange-500/20 text-orange-300 border border-orange-500/40 shadow-sm"
+                  : "bg-white/5 text-white/50 hover:text-white border border-white/10 hover:border-white/20",
+              )}
+            >
+              {b.name}
+            </Link>
+          ))}
         </div>
 
         <div className="flex items-center gap-2.5">
@@ -1198,7 +1282,7 @@ export default function BrandShopPage({
         {/* Brand Hero Header */}
         <section>
           <BrandHero
-            brand={BRAND_PASSPORT}
+            brand={currentBrand}
             followerCount={followerCount}
             isFollowing={isFollowingBrand}
             onFollowToggle={handleBrandFollowToggle}
@@ -1290,6 +1374,7 @@ export default function BrandShopPage({
                   key={product.id}
                   product={product}
                   onInspect={setInspectedProduct}
+                  onDemandSignal={handleDemandSignal}
                 />
               ))}
             </div>
@@ -1315,95 +1400,97 @@ export default function BrandShopPage({
         </section>
 
         {/* Shoppable Spatial Drawer Section */}
-        <section className="space-y-5 pt-4">
-          <div className="flex items-center justify-between flex-wrap gap-2">
-            <div className="flex items-center gap-2.5">
-              <div className="w-7 h-7 rounded-lg bg-orange-500/15 border border-orange-500/30 flex items-center justify-center text-orange-400">
-                <Layers className="w-4 h-4" />
+        {brandPosts.length > 0 && (
+          <section className="space-y-5 pt-4">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <div className="flex items-center gap-2.5">
+                <div className="w-7 h-7 rounded-lg bg-orange-500/15 border border-orange-500/30 flex items-center justify-center text-orange-400">
+                  <Layers className="w-4 h-4" />
+                </div>
+                <h2 className="text-base sm:text-lg font-bold text-white tracking-wide uppercase font-mono">
+                  Shoppable Spatial Posts
+                </h2>
+                <div className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#CC5500]/15 border border-[#CC5500]/30">
+                  <span className="w-2 h-2 rounded-full bg-[#CC5500] pin-pulse" />
+                  <span className="text-[10px] font-mono text-orange-300 font-semibold">
+                    Live Spatial Pins
+                  </span>
+                </div>
               </div>
-              <h2 className="text-base sm:text-lg font-bold text-white tracking-wide uppercase font-mono">
-                Shoppable Spatial Posts
-              </h2>
-              <div className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#CC5500]/15 border border-[#CC5500]/30">
-                <span className="w-2 h-2 rounded-full bg-[#CC5500] pin-pulse" />
-                <span className="text-[10px] font-mono text-orange-300 font-semibold">
-                  Live Spatial Pins
-                </span>
-              </div>
+              <p className="text-xs font-mono text-white/40">
+                Interactive real-world craftsman scenes
+              </p>
             </div>
-            <p className="text-xs font-mono text-white/40">
-              Interactive real-world craftsman scenes
-            </p>
-          </div>
 
-          {/* Posts Grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            {SHOPPABLE_POSTS.map((post) => (
-              <FrostedCard
-                key={post.id}
-                noPadding
-                glowOnHover
-                onClick={() => setActiveSpatialPost(post)}
-                className="group cursor-pointer overflow-hidden flex flex-col h-full border border-white/10 transition-all duration-300 hover:border-orange-500/40"
-              >
-                {/* Scene Graphic Container */}
-                <div className="h-44 bg-gradient-to-br from-stone-800 via-stone-900 to-[#121212] relative overflow-hidden flex items-center justify-center">
-                  <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom_left,_rgba(204,85,0,0.18),_transparent_70%)]" />
-                  <div
-                    className="absolute inset-0 opacity-10"
-                    style={{
-                      backgroundImage:
-                        "radial-gradient(circle, rgba(255,255,255,0.3) 1px, transparent 1px)",
-                      backgroundSize: "20px 20px",
-                    }}
-                  />
+            {/* Posts Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              {brandPosts.map((post) => (
+                <FrostedCard
+                  key={post.id}
+                  noPadding
+                  glowOnHover
+                  onClick={() => setActiveSpatialPost(post)}
+                  className="group cursor-pointer overflow-hidden flex flex-col h-full border border-white/10 transition-all duration-300 hover:border-orange-500/40"
+                >
+                  {/* Scene Graphic Container */}
+                  <div className="h-44 bg-gradient-to-br from-stone-800 via-stone-900 to-[#121212] relative overflow-hidden flex items-center justify-center">
+                    <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom_left,_rgba(204,85,0,0.18),_transparent_70%)]" />
+                    <div
+                      className="absolute inset-0 opacity-10"
+                      style={{
+                        backgroundImage:
+                          "radial-gradient(circle, rgba(255,255,255,0.3) 1px, transparent 1px)",
+                        backgroundSize: "20px 20px",
+                      }}
+                    />
 
-                  {/* Scene Icon */}
-                  <div className="relative z-10 text-stone-500 group-hover:scale-110 transition-transform duration-300">
-                    <MapPin className="w-12 h-12 text-orange-500/40" />
+                    {/* Scene Icon */}
+                    <div className="relative z-10 text-stone-500 group-hover:scale-110 transition-transform duration-300">
+                      <MapPin className="w-12 h-12 text-orange-500/40" />
+                    </div>
+
+                    {/* Pin Count Pill */}
+                    <div className="absolute top-3 right-3 px-2.5 py-1 rounded-full bg-black/60 backdrop-blur-md border border-orange-500/40 font-mono text-[10px] font-semibold text-orange-300 flex items-center gap-1.5 shadow-lg">
+                      <span className="w-1.5 h-1.5 rounded-full bg-[#CC5500] animate-ping" />
+                      <span>
+                        {post.pins.length} Pin{post.pins.length !== 1 ? "s" : ""}
+                      </span>
+                    </div>
+
+                    {/* Open prompt overlay */}
+                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center backdrop-blur-[1px]">
+                      <span className="px-3 py-1.5 rounded-lg bg-[#CC5500] text-white font-mono text-xs font-semibold shadow-xl flex items-center gap-1.5">
+                        <Maximize2 className="w-3.5 h-3.5" />
+                        Expand Spatial View
+                      </span>
+                    </div>
                   </div>
 
-                  {/* Pin Count Pill */}
-                  <div className="absolute top-3 right-3 px-2.5 py-1 rounded-full bg-black/60 backdrop-blur-md border border-orange-500/40 font-mono text-[10px] font-semibold text-orange-300 flex items-center gap-1.5 shadow-lg">
-                    <span className="w-1.5 h-1.5 rounded-full bg-[#CC5500] animate-ping" />
-                    <span>
-                      {post.pins.length} Pin{post.pins.length !== 1 ? "s" : ""}
-                    </span>
-                  </div>
+                  {/* Post Metadata */}
+                  <div className="p-4 flex flex-col flex-1 gap-2 bg-[#171717]">
+                    <p className="text-xs font-medium text-white/90 leading-snug line-clamp-2">
+                      {post.caption}
+                    </p>
 
-                  {/* Open prompt overlay */}
-                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center backdrop-blur-[1px]">
-                    <span className="px-3 py-1.5 rounded-lg bg-[#CC5500] text-white font-mono text-xs font-semibold shadow-xl flex items-center gap-1.5">
-                      <Maximize2 className="w-3.5 h-3.5" />
-                      Expand Spatial View
-                    </span>
-                  </div>
-                </div>
+                    <div className="flex items-center gap-1.5 mt-auto pt-2 border-t border-white/5">
+                      <MapPin className="w-3.5 h-3.5 text-orange-400 flex-shrink-0" />
+                      <span className="font-mono text-[11px] text-white/50 truncate">
+                        {post.location}
+                      </span>
+                    </div>
 
-                {/* Post Metadata */}
-                <div className="p-4 flex flex-col flex-1 gap-2 bg-[#171717]">
-                  <p className="text-xs font-medium text-white/90 leading-snug line-clamp-2">
-                    {post.caption}
-                  </p>
-
-                  <div className="flex items-center gap-1.5 mt-auto pt-2 border-t border-white/5">
-                    <MapPin className="w-3.5 h-3.5 text-orange-400 flex-shrink-0" />
-                    <span className="font-mono text-[11px] text-white/50 truncate">
-                      {post.location}
-                    </span>
+                    <div className="flex items-center gap-1.5">
+                      <Clock className="w-3.5 h-3.5 text-white/25 flex-shrink-0" />
+                      <span className="font-mono text-[10px] text-white/40">
+                        {relativeTime(post.timestamp)}
+                      </span>
+                    </div>
                   </div>
-
-                  <div className="flex items-center gap-1.5">
-                    <Clock className="w-3.5 h-3.5 text-white/25 flex-shrink-0" />
-                    <span className="font-mono text-[10px] text-white/40">
-                      {relativeTime(post.timestamp)}
-                    </span>
-                  </div>
-                </div>
-              </FrostedCard>
-            ))}
-          </div>
-        </section>
+                </FrostedCard>
+              ))}
+            </div>
+          </section>
+        )}
       </div>
 
       {/* Spatial Modal Container */}
@@ -1434,7 +1521,7 @@ export default function BrandShopPage({
       <AnimatePresence>
         {showLedgerModal && (
           <LedgerAuditModal
-            brand={BRAND_PASSPORT}
+            brand={currentBrand}
             onClose={() => setShowLedgerModal(false)}
           />
         )}

@@ -9,9 +9,11 @@
     "lint": "eslint",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "db:seed": "vitest run lib/db/seed.ts"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.112.4",
     "clsx": "^2.1.1",
     "framer-motion": "^13.1.1",
     "ioredis": "^6.0.0",
