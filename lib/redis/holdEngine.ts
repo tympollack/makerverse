@@ -427,12 +427,12 @@ export class InMemoryRedisClient implements RedisClientInterface {
     return false;
   }
 
-  async get(key: string): Promise<string | null> {
+  private getSync(key: string): string | null {
     if (this.isExpired(key)) return null;
     return this.store.get(key)?.val ?? null;
   }
 
-  async set(key: string, value: string, ...args: (string | number)[]): Promise<unknown> {
+  private setSync(key: string, value: string, ...args: (string | number)[]): void {
     let expiresAt: number | undefined = undefined;
     if (args[0] === "EX" && typeof args[1] === "number") {
       expiresAt = Date.now() + args[1] * 1000;
@@ -440,22 +440,14 @@ export class InMemoryRedisClient implements RedisClientInterface {
       expiresAt = Date.now() + args[1];
     }
     this.store.set(key, { val: value, expiresAt });
-    return "OK";
   }
 
-  async del(key: string): Promise<number> {
+  private delSync(key: string): number {
     const existed = this.store.delete(key);
     return existed ? 1 : 0;
   }
 
-  async pttl(key: string): Promise<number> {
-    if (this.isExpired(key)) return -2;
-    const entry = this.store.get(key);
-    if (!entry || !entry.expiresAt) return -1;
-    return Math.max(0, entry.expiresAt - Date.now());
-  }
-
-  async xadd(stream: string, id: string, ...args: string[]): Promise<string> {
+  private xaddSync(stream: string, id: string, ...args: string[]): string {
     const streamId = id === "*" ? `${Date.now()}-0` : id;
     const fields: Record<string, string> = {};
     for (let i = 0; i < args.length; i += 2) {
@@ -468,6 +460,30 @@ export class InMemoryRedisClient implements RedisClientInterface {
     return streamId;
   }
 
+  async get(key: string): Promise<string | null> {
+    return this.getSync(key);
+  }
+
+  async set(key: string, value: string, ...args: (string | number)[]): Promise<unknown> {
+    this.setSync(key, value, ...args);
+    return "OK";
+  }
+
+  async del(key: string): Promise<number> {
+    return this.delSync(key);
+  }
+
+  async pttl(key: string): Promise<number> {
+    if (this.isExpired(key)) return -2;
+    const entry = this.store.get(key);
+    if (!entry || !entry.expiresAt) return -1;
+    return Math.max(0, entry.expiresAt - Date.now());
+  }
+
+  async xadd(stream: string, id: string, ...args: string[]): Promise<string> {
+    return this.xaddSync(stream, id, ...args);
+  }
+
   getStreamEntries(stream: string) {
     return this.streams.get(stream) ?? [];
   }
@@ -476,7 +492,7 @@ export class InMemoryRedisClient implements RedisClientInterface {
     const keys = args.slice(0, numkeys).map(String);
     const argv = args.slice(numkeys);
 
-    // Emulate CREATE_HOLD_LUA
+    // Emulate CREATE_HOLD_LUA synchronously & atomically
     if (script === CREATE_HOLD_LUA) {
       const [holdKey, lockKey, stockKey, streamKey] = keys;
       const [
@@ -497,13 +513,13 @@ export class InMemoryRedisClient implements RedisClientInterface {
       const nowMs = Number(nowMsStr);
       const expiresAtMs = Number(expiresAtMsStr);
 
-      let currentStock = await this.get(stockKey);
+      let currentStock = this.getSync(stockKey);
       if (currentStock === null && initialStockStr !== undefined && initialStockStr !== "") {
         currentStock = String(initialStockStr);
-        await this.set(stockKey, currentStock);
+        this.setSync(stockKey, currentStock);
       }
       const totalStock = Number(currentStock ?? 0);
-      const currentLocked = Number((await this.get(lockKey)) ?? 0);
+      const currentLocked = Number(this.getSync(lockKey) ?? 0);
 
       if (currentLocked + qty > totalStock) {
         return JSON.stringify({
@@ -515,7 +531,7 @@ export class InMemoryRedisClient implements RedisClientInterface {
         });
       }
 
-      await this.set(lockKey, String(currentLocked + qty));
+      this.setSync(lockKey, String(currentLocked + qty));
       const holdData: HoldRecord = {
         holdId: String(holdId),
         productId: String(productId),
@@ -529,8 +545,8 @@ export class InMemoryRedisClient implements RedisClientInterface {
         retryCount: 0,
       };
 
-      await this.set(holdKey, JSON.stringify(holdData), "EX", ttlSec);
-      await this.xadd(
+      this.setSync(holdKey, JSON.stringify(holdData), "EX", ttlSec);
+      this.xaddSync(
         streamKey,
         "*",
         "event_id",
@@ -556,12 +572,12 @@ export class InMemoryRedisClient implements RedisClientInterface {
       return JSON.stringify({ success: true, hold: holdData });
     }
 
-    // Emulate REFRESH_HOLD_LUA
+    // Emulate REFRESH_HOLD_LUA synchronously & atomically
     if (script === REFRESH_HOLD_LUA) {
       const [holdKey, streamKey] = keys;
       const [extensionSecStr, nowMsStr, reason, eventId] = argv;
 
-      const rawHold = await this.get(holdKey);
+      const rawHold = this.getSync(holdKey);
       if (!rawHold) return JSON.stringify({ success: false, code: "HOLD_NOT_FOUND" });
 
       const hold: HoldRecord = JSON.parse(rawHold);
@@ -573,8 +589,8 @@ export class InMemoryRedisClient implements RedisClientInterface {
       hold.expiresAt = nowMs + extSec * 1000;
       hold.ttlSeconds = extSec;
 
-      await this.set(holdKey, JSON.stringify(hold), "EX", extSec);
-      await this.xadd(
+      this.setSync(holdKey, JSON.stringify(hold), "EX", extSec);
+      this.xaddSync(
         streamKey,
         "*",
         "event_id",
@@ -598,24 +614,24 @@ export class InMemoryRedisClient implements RedisClientInterface {
       return JSON.stringify({ success: true, hold });
     }
 
-    // Emulate RELEASE_HOLD_LUA
+    // Emulate RELEASE_HOLD_LUA synchronously & atomically
     if (script === RELEASE_HOLD_LUA) {
       const [holdKey, lockKey, streamKey] = keys;
       const [reason, nowMsStr, eventId] = argv;
 
-      const rawHold = await this.get(holdKey);
+      const rawHold = this.getSync(holdKey);
       if (!rawHold) return JSON.stringify({ success: false, code: "HOLD_NOT_FOUND" });
 
       const hold: HoldRecord = JSON.parse(rawHold);
       const qty = hold.qty || 1;
       const nowMs = Number(nowMsStr);
 
-      const currentLocked = Number((await this.get(lockKey)) ?? 0);
+      const currentLocked = Number(this.getSync(lockKey) ?? 0);
       const newLocked = Math.max(0, currentLocked - qty);
-      await this.set(lockKey, String(newLocked));
-      await this.del(holdKey);
+      this.setSync(lockKey, String(newLocked));
+      this.delSync(holdKey);
 
-      await this.xadd(
+      this.xaddSync(
         streamKey,
         "*",
         "event_id",
@@ -640,12 +656,12 @@ export class InMemoryRedisClient implements RedisClientInterface {
       return JSON.stringify({ success: true, releasedHold: hold });
     }
 
-    // Emulate FULFILL_HOLD_LUA
+    // Emulate FULFILL_HOLD_LUA synchronously & atomically
     if (script === FULFILL_HOLD_LUA) {
       const [holdKey, lockKey, stockKey, streamKey] = keys;
       const [orderId, totalCentsStr, txHash, chipUid, nowMsStr, eventId] = argv;
 
-      const rawHold = await this.get(holdKey);
+      const rawHold = this.getSync(holdKey);
       if (!rawHold) return JSON.stringify({ success: false, code: "HOLD_NOT_FOUND" });
 
       const hold: HoldRecord = JSON.parse(rawHold);
@@ -653,17 +669,17 @@ export class InMemoryRedisClient implements RedisClientInterface {
       const nowMs = Number(nowMsStr);
       const totalCents = Number(totalCentsStr);
 
-      const currentLocked = Number((await this.get(lockKey)) ?? 0);
+      const currentLocked = Number(this.getSync(lockKey) ?? 0);
       const newLocked = Math.max(0, currentLocked - qty);
-      await this.set(lockKey, String(newLocked));
+      this.setSync(lockKey, String(newLocked));
 
-      const currentStock = Number((await this.get(stockKey)) ?? 0);
+      const currentStock = Number(this.getSync(stockKey) ?? 0);
       const newStock = Math.max(0, currentStock - qty);
-      await this.set(stockKey, String(newStock));
+      this.setSync(stockKey, String(newStock));
 
-      await this.del(holdKey);
+      this.delSync(holdKey);
 
-      await this.xadd(
+      this.xaddSync(
         streamKey,
         "*",
         "event_id",
