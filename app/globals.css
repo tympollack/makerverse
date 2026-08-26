@@ -1,0 +1,128 @@
+@import "tailwindcss";
+
+/* ─── Craftsman-Tech Design System ─────────────────────────────────────────── */
+@theme {
+  /* Palette */
+  --color-canvas: #1a1a1a;
+  --color-surface: rgba(255, 255, 255, 0.05);
+  --color-border: rgba(255, 255, 255, 0.10);
+  --color-accent: #cc5500;
+  --color-accent-hover: #e0621a;
+  --color-data: #f9f9f9;
+  --color-cyan: #22d3ee;
+
+  /* Font families */
+  --font-sans: "Inter", "Geist", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", "Roboto Mono", ui-monospace, monospace;
+
+  /* Shadows */
+  --shadow-glow-orange: 0 0 24px rgba(204, 85, 0, 0.25);
+  --shadow-glow-cyan: 0 0 16px rgba(34, 211, 238, 0.35);
+  --shadow-glow-violet: 0 0 20px rgba(139, 92, 246, 0.20);
+}
+
+/* ─── Base ───────────────────────────────────────────────────────────────────── */
+:root {
+  color-scheme: dark;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  background-color: #1a1a1a;
+  color: #f9f9f9;
+  font-family: var(--font-sans);
+  min-height: 100vh;
+}
+
+/* ─── Scrollbar ──────────────────────────────────────────────────────────────── */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(204, 85, 0, 0.5);
+}
+
+/* ─── Selection ──────────────────────────────────────────────────────────────── */
+::selection {
+  background: rgba(204, 85, 0, 0.35);
+  color: #f9f9f9;
+}
+
+/* ─── Frosted Glass Utility ──────────────────────────────────────────────────── */
+.frosted {
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+  border-radius: 0.75rem;
+}
+
+/* ─── Telemetry Glow Utilities ───────────────────────────────────────────────── */
+.glow-orange {
+  text-shadow: 0 0 12px rgba(204, 85, 0, 0.7);
+}
+.glow-cyan {
+  text-shadow: 0 0 12px rgba(34, 211, 238, 0.7);
+}
+.glow-white {
+  text-shadow: 0 0 10px rgba(249, 249, 249, 0.5);
+}
+
+/* ─── Pulsing Shoppable Pin ──────────────────────────────────────────────────── */
+@keyframes ping-slow {
+  0% { transform: scale(1); opacity: 0.8; }
+  70% { transform: scale(2.2); opacity: 0; }
+  100% { transform: scale(2.2); opacity: 0; }
+}
+.pin-pulse {
+  animation: ping-slow 2s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+
+/* ─── Mono Data Feed ─────────────────────────────────────────────────────────── */
+.data-feed {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  line-height: 1.6;
+  color: rgba(249, 249, 249, 0.6);
+}
+
+/* ─── CTA Button ─────────────────────────────────────────────────────────────── */
+.btn-cta {
+  background-color: #cc5500;
+  color: #f9f9f9;
+  font-weight: 600;
+  border-radius: 0.5rem;
+  padding: 0.5rem 1.25rem;
+  transition: background-color 0.2s, box-shadow 0.2s;
+  cursor: pointer;
+  border: none;
+}
+.btn-cta:hover {
+  background-color: #e0621a;
+  box-shadow: 0 0 20px rgba(204, 85, 0, 0.4);
+}
+
+/* ─── Tabular mono numbers ────────────────────────────────────────────────────── */
+.tabular {
+  font-variant-numeric: tabular-nums;
+  font-family: var(--font-mono);
+}
