@@ -455,7 +455,7 @@ export class SemVerRange {
       const partial = SemVerRange.parsePartialVersion(verStr);
       if (partial.isWildcardMinor) {
         // e.g. 1.x or 1.*
-        if (op === "=" || op === "==" || op === "") {
+        if (op === "=" || op === "==") {
           return [
             { operator: ">=", version: new EcosystemVersion(partial.major, 0, 0) },
             { operator: "<", version: new EcosystemVersion(partial.major + 1, 0, 0) },
@@ -474,7 +474,7 @@ export class SemVerRange {
 
       if (partial.isWildcardRevision) {
         // e.g. 1.2.x or 1.2.*
-        if (op === "=" || op === "==" || op === "") {
+        if (op === "=" || op === "==") {
           return [
             { operator: ">=", version: new EcosystemVersion(partial.major, partial.minor, 0) },
             { operator: "<", version: new EcosystemVersion(partial.major, partial.minor + 1, 0) },
