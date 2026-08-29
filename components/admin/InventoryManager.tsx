@@ -23,6 +23,7 @@ import { FrostedCard } from "@/components/ui/FrostedCard";
 import { MonoValue } from "@/components/ui/MonoValue";
 import { StatusBadge, ChipTierBadge } from "@/components/ui/StatusBadge";
 import { ProductRegistrationDrawer } from "@/components/admin/ProductRegistrationDrawer";
+import { VersionReleaseBadge } from "@/components/admin/VersionReleaseBadge";
 import { INVENTORY_ITEMS, NFC_BATCH_QUEUE } from "@/lib/mock/adminData";
 import type { InventoryItem, NfcChipEntry, ChipLockState } from "@/lib/mock/adminData";
 import { cn } from "@/lib/utils";
@@ -585,13 +586,14 @@ export function InventoryManager() {
       {/* Header & Registration CTA */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2.5">
+          <div className="flex items-center gap-2.5 flex-wrap">
             <h1 className="text-xl sm:text-2xl font-bold text-white tracking-wide">
               Inventory & NFC Management
             </h1>
             <span className="text-[10px] font-mono px-2.5 py-0.5 rounded-full bg-[#CC5500]/15 text-orange-300 border border-[#CC5500]/30 font-semibold uppercase tracking-wider">
               Studio Admin
             </span>
+            <VersionReleaseBadge variant="pill" />
           </div>
           <p className="text-xs font-mono text-white/40 mt-1">
             Physical-to-digital inventory lifecycle · Dynamic SUN-CMAC encoding · EIP-2981 secondary royalty governance

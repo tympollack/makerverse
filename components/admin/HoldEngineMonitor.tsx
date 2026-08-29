@@ -31,6 +31,7 @@ import { FrostedCard } from "@/components/ui/FrostedCard";
 import { MonoValue } from "@/components/ui/MonoValue";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { CountdownTimer, TTLBar, formatTTL } from "@/components/ui/CountdownTimer";
+import { VersionReleaseBadge } from "@/components/admin/VersionReleaseBadge";
 import { ACTIVE_HOLDS } from "@/lib/mock/adminData";
 import type { HoldEntry, HoldState } from "@/lib/mock/adminData";
 import { cn } from "@/lib/utils";
@@ -927,7 +928,7 @@ export function HoldEngineMonitor() {
       {/* Header & simulation toolbar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2.5">
+          <div className="flex items-center gap-2.5 flex-wrap">
             <h1 className="text-xl font-bold text-white tracking-wide">
               Commerce Hold Engine Monitor
             </h1>
@@ -935,6 +936,7 @@ export function HoldEngineMonitor() {
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
               Redis Live Engine
             </span>
+            <VersionReleaseBadge variant="pill" />
           </div>
           <p className="text-xs font-mono text-white/40 mt-1">
             Distributed 600s TTL State Machine · Atomic Lua Concurrency · Redis Stream Bus
