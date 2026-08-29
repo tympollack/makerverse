@@ -39,6 +39,7 @@ import { FollowToggle } from "@/components/ui/FollowToggle";
 import { DemandSignalButton } from "@/components/ui/DemandSignalButton";
 import { MonoValue, PriceTag, ChipUID } from "@/components/ui/MonoValue";
 import { StatusBadge } from "@/components/ui/StatusBadge";
+import { VersionReleaseBadge } from "@/components/admin/VersionReleaseBadge";
 import {
   BRAND_PASSPORT,
   PRODUCTS,
@@ -202,7 +203,8 @@ function BrandHero({
         />
 
         {/* Ambient telemetry indicators */}
-        <div className="absolute top-4 right-4 flex items-center gap-2">
+        <div className="absolute top-4 right-4 flex items-center gap-2 flex-wrap justify-end">
+          <VersionReleaseBadge variant="pill" />
           <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-black/40 backdrop-blur-md border border-white/10 text-[11px] font-mono text-cyan-300 shadow-lg">
             <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
             <span>Makerverse Ledger v2.4</span>
@@ -1404,6 +1406,19 @@ export default function BrandShopPage({
             ))}
           </div>
         </section>
+
+        {/* Ecosystem Footer Bar with SDK Version Release Info */}
+        <footer className="pt-8 pb-12 border-t border-white/8 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-white/40 font-mono">
+          <div className="flex items-center gap-2">
+            <span className="font-semibold text-white/70">MAKERVERSE ECOSYSTEM</span>
+            <span>·</span>
+            <span>Initial Release v0.1.0</span>
+          </div>
+          <div className="flex items-center gap-3">
+            <VersionReleaseBadge variant="badge" />
+            <span className="text-[11px]">Strict SemVer & Payload Envelope Guardrails Active</span>
+          </div>
+        </footer>
       </div>
 
       {/* Spatial Modal Container */}
