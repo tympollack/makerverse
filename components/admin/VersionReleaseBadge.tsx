@@ -17,6 +17,7 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { sdk, MAKERVERSE_RELEASE_VERSION } from "@/lib/version";
+import { ModalShell } from "@digitalcanopy/ui";
 import { cn } from "@/lib/utils";
 
 interface VersionReleaseBadgeProps {
@@ -121,38 +122,29 @@ export function VersionReleaseBadge({
       )}
 
       {/* System Version & Handshake Info Modal */}
-      <AnimatePresence>
-        {modalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 10 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 10 }}
-              transition={{ duration: 0.2, ease: "easeOut" }}
-              className="w-full max-w-lg rounded-2xl bg-[#141414] border border-white/12 shadow-[0_0_40px_rgba(0,0,0,0.8)] overflow-hidden flex flex-col"
+      <ModalShell
+        isOpen={modalOpen}
+        onClose={() => setModalOpen(false)}
+        title="Makerverse Ecosystem Version"
+        subtitle={`makerverse_sdk v${MAKERVERSE_RELEASE_VERSION}`}
+        icon={<Layers className="w-4 h-4 text-cyan-400" />}
+        footer={
+          <div className="w-full flex items-center justify-between text-[10px] font-mono text-white/40">
+            <span>Release: v{MAKERVERSE_RELEASE_VERSION} (Initial Release)</span>
+            <button
+              type="button"
+              onClick={() => setModalOpen(false)}
+              className="px-3 py-1 rounded bg-white/10 hover:bg-white/20 text-white transition-colors cursor-pointer"
             >
-              {/* Modal Header */}
-              <div className="flex items-center justify-between px-5 py-4 border-b border-white/8 bg-[#181818]">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-cyan-500/20 to-orange-500/20 border border-cyan-500/30 flex items-center justify-center text-cyan-400">
-                    <Layers className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-semibold text-white">Makerverse Ecosystem Version</h3>
-                    <p className="text-[10px] font-mono text-white/40">makerverse_sdk v{MAKERVERSE_RELEASE_VERSION}</p>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setModalOpen(false)}
-                  className="p-1 rounded-lg text-white/40 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-
-              {/* Modal Body */}
-              <div className="p-5 space-y-4 max-h-[75vh] overflow-y-auto">
+              Close
+            </button>
+          </div>
+        }
+        className="w-full max-w-lg rounded-2xl bg-[#141414] border border-white/12 shadow-[0_0_40px_rgba(0,0,0,0.8)] overflow-hidden flex flex-col"
+        headerClassName="px-5 py-4 border-b border-white/8 bg-[#181818]"
+        footerClassName="px-5 py-3 border-t border-white/8 bg-[#181818]"
+        bodyClassName="p-5 space-y-4 max-h-[75vh] overflow-y-auto"
+      >
                 {/* Handshake Status Card */}
                 <div className="p-3.5 rounded-xl bg-white/3 border border-white/8 space-y-2">
                   <div className="flex items-center justify-between">
@@ -251,23 +243,7 @@ export function VersionReleaseBadge({
                     ENFORCED
                   </span>
                 </div>
-              </div>
-
-              {/* Modal Footer */}
-              <div className="px-5 py-3 border-t border-white/8 bg-[#181818] flex items-center justify-between text-[10px] font-mono text-white/40">
-                <span>Release: v{MAKERVERSE_RELEASE_VERSION} (Initial Release)</span>
-                <button
-                  type="button"
-                  onClick={() => setModalOpen(false)}
-                  className="px-3 py-1 rounded bg-white/10 hover:bg-white/20 text-white transition-colors cursor-pointer"
-                >
-                  Close
-                </button>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
+      </ModalShell>
     </>
   );
 }
