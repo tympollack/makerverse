@@ -1,19 +1,22 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const ROOT_DIR = process.cwd();
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const ROOT_DIR = path.resolve(__dirname, '..');
 const SCAN_DIRS = ['app', 'components', 'lib'];
 
 // Grandfathered file size limits (ratchet mechanism).
-// Files here are strictly capped at their legacy size and must NOT grow larger.
+// Files here are strictly capped at their exact legacy baseline size and must NOT grow larger.
 // When refactored down below standard thresholds, files are removed from this list.
 const LEGACY_EXEMPTIONS = new Map([
-  ['app/(shop)/[brandId]/page.tsx', 1500],
-  ['components/admin/POSTerminal.tsx', 1300],
-  ['components/admin/HoldEngineMonitor.tsx', 1100],
-  ['components/admin/BoothEngine.tsx', 1100],
-  ['lib/redis/holdEngine.ts', 1100],
+  ['app/(shop)/[brandId]/page.tsx', 1459],
+  ['components/admin/POSTerminal.tsx', 1244],
+  ['components/admin/HoldEngineMonitor.tsx', 1054],
+  ['components/admin/BoothEngine.tsx', 1058],
+  ['lib/redis/holdEngine.ts', 1058],
 ]);
 
 const RULES = {
@@ -68,6 +71,11 @@ function checkFiles() {
   for (const subDir of SCAN_DIRS) {
     const dirPath = path.join(ROOT_DIR, subDir);
     getAllFiles(dirPath, files);
+  }
+
+  if (files.length === 0) {
+    console.error('\n❌ Error: No source files found to scan. Ensure the script is run in the repository.\n');
+    process.exit(1);
   }
 
   let hasErrors = false;
