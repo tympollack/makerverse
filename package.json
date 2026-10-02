@@ -6,13 +6,14 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint",
+    "lint": "eslint && node scripts/lint-filesize.mjs",
+    "lint:filesize": "node scripts/lint-filesize.mjs",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@digitalcanopy/ui": "^0.1.0",
+    "@digitalcanopy/ui": "^0.1.2",
     "clsx": "^2.1.1",
     "framer-motion": "^13.1.1",
     "ioredis": "^6.0.0",
