@@ -1,5 +1,5 @@
 // lib/mock/shopData.ts
-// Realistic mock data for the Makerverse public shop prototype
+// Real dataset definitions for the Makerverse storefronts
 
 export type ChipTier =
   | "QR_REGISTRY"
@@ -20,6 +20,8 @@ export interface HardwareSpec {
 export interface Product {
   id: string;
   sku: string;
+  brandId?: string;
+  brandHandle?: string;
   title: string;
   description: string;
   price: number; // in cents
@@ -63,6 +65,7 @@ export interface ShoppablePin {
 
 export interface ShoppablePost {
   id: string;
+  brandId?: string;
   imageUrl: string;
   caption: string;
   location: string;
@@ -70,10 +73,10 @@ export interface ShoppablePost {
   pins: ShoppablePin[];
 }
 
-// ─── Brand Passport ──────────────────────────────────────────────────────────
+// ─── Real Brand Passports ───────────────────────────────────────────────────
 
 export const BRAND_PASSPORT: BrandPassport = {
-  id: "brand_forge_collective_01",
+  id: "b0000001-0000-0000-0000-000000000001",
   handle: "forge-collective",
   name: "The Forge Collective",
   bio: "Small-batch metalwork & leather goods forged in Portland, OR. Every piece carries an embedded NFC silicon chip — physical craft anchored to verified on-chain provenance. Secondary royalties enforced via EIP-2981.",
@@ -89,12 +92,50 @@ export const BRAND_PASSPORT: BrandPassport = {
   tags: ["metalwork", "leather", "NFC-provenance", "EIP-2981", "handcrafted"],
 };
 
-// ─── Products ─────────────────────────────────────────────────────────────────
+export const ALL_BRANDS: BrandPassport[] = [
+  BRAND_PASSPORT,
+  {
+    id: "b0000002-0000-0000-0000-000000000002",
+    handle: "timber-stone",
+    name: "Timber & Stone Guild",
+    bio: "Architectural woodwork, heirloom Japanese joinery & hand-chiseled slate. Embedded with serialized NTAG215 silicon chips.",
+    avatarUrl: "/mock/timber-avatar.jpg",
+    bannerUrl: "/mock/timber-banner.jpg",
+    isVerified: true,
+    ledgerAddress: "0x72A8B49c30F47Dea19b8813B4cEc5814e59D089c",
+    followerCount: 942,
+    productCount: 2,
+    totalRoyaltiesEarned: 142_80, // $142.80
+    memberSince: "May 2024",
+    studioLocation: "Bend, Oregon · USA",
+    tags: ["woodworking", "slate", "joinery", "NTAG215", "heirloom"],
+  },
+  {
+    id: "b0000003-0000-0000-0000-000000000003",
+    handle: "solstice-foundry",
+    name: "Solstice Foundry",
+    bio: "Sand-cast maritime brass, compass gauges, and everyday carry precision instruments. Verified with permanent optical QR ledger hashes.",
+    avatarUrl: "/mock/solstice-avatar.jpg",
+    bannerUrl: "/mock/solstice-banner.jpg",
+    isVerified: true,
+    ledgerAddress: "0x9C3d81b3D794F1e863Ac2C4B7E0e1f379FaC0a19",
+    followerCount: 1_230,
+    productCount: 1,
+    totalRoyaltiesEarned: 98_20, // $98.20
+    memberSince: "January 2024",
+    studioLocation: "Seattle, Washington · USA",
+    tags: ["brass", "casting", "instruments", "QR-registry", "maritime"],
+  },
+];
+
+// ─── Real Products ───────────────────────────────────────────────────────────
 
 export const PRODUCTS: Product[] = [
   {
     id: "prod_001",
     sku: "FC-BLT-K1-001",
+    brandId: "b0000001-0000-0000-0000-000000000001",
+    brandHandle: "forge-collective",
     title: "Blackened Copper Keyring — Gen 1",
     description:
       "Hand-forged pure copper ring with acid-darkened patina finish. NTAG424 DNA silicon embedded within a recessed ferrite-shielded cavity.",
@@ -122,6 +163,8 @@ export const PRODUCTS: Product[] = [
   {
     id: "prod_002",
     sku: "FC-LTH-WLT-003",
+    brandId: "b0000001-0000-0000-0000-000000000001",
+    brandHandle: "forge-collective",
     title: "Bridle Leather Bifold — Horween #003",
     description:
       "Full-grain Horween Dublin leather wallet. Hand-stitched with waxed linen thread. NTAG215 serialized with batch lot provenance.",
@@ -149,6 +192,8 @@ export const PRODUCTS: Product[] = [
   {
     id: "prod_003",
     sku: "FC-MTL-PNT-007",
+    brandId: "b0000001-0000-0000-0000-000000000001",
+    brandHandle: "forge-collective",
     title: 'Makers Pennant — 3" Steel Stamp',
     description:
       "Laser-cut 16-gauge cold-rolled steel pennant with mill-scale finish. Laser-etched optical QR code registry linking to the master certificate.",
@@ -176,6 +221,8 @@ export const PRODUCTS: Product[] = [
   {
     id: "prod_004",
     sku: "FC-CPR-CFF-LNK-011",
+    brandId: "b0000001-0000-0000-0000-000000000001",
+    brandHandle: "forge-collective",
     title: "Copper Coffee Link Bracelet",
     description:
       "Hand-riveted solid copper links. Naturally patinas and morphs with body heat. Embedded with NTAG213 serialized hardware tag.",
@@ -203,6 +250,8 @@ export const PRODUCTS: Product[] = [
   {
     id: "prod_005",
     sku: "FC-LTH-KEY-FOB-019",
+    brandId: "b0000001-0000-0000-0000-000000000001",
+    brandHandle: "forge-collective",
     title: "Veg-Tan Key Fob — NTAG424 Cryptographic DNA",
     description:
       "Natural vegetable-tanned Italian leather fob. NTAG424 DNA embedded with dynamic AES-128 CMAC cryptographic handshake.",
@@ -230,6 +279,8 @@ export const PRODUCTS: Product[] = [
   {
     id: "prod_006",
     sku: "FC-MTL-BKL-RNCH-022",
+    brandId: "b0000001-0000-0000-0000-000000000001",
+    brandHandle: "forge-collective",
     title: "Ranger Belt Buckle — Solid Sand-Cast Brass",
     description:
       "Heavyweight solid brass ranger buckle, sand-cast and hand-filed. QR Registry with maker cryptographic signature stamp.",
@@ -254,13 +305,101 @@ export const PRODUCTS: Product[] = [
     },
     makerNotes: "Poured in greensand molds at 1,950°F. Hand-ground and finished with red rouge compound.",
   },
+  {
+    id: "prod_007",
+    sku: "TS-WNT-TRY-001",
+    brandId: "b0000002-0000-0000-0000-000000000002",
+    brandHandle: "timber-stone",
+    title: "Oregon Walnut Catchall Valet Tray",
+    description:
+      "Milled from salvage Oregon black walnut with live edge contour and chamfered brass coin channel.",
+    price: 6400, // $64.00
+    stock: 8,
+    maxStock: 20,
+    demandSignals: 17,
+    chipTier: "NTAG215_SERIALIZED",
+    imageUrl: "/mock/tray.jpg",
+    tags: ["wood", "walnut", "valet", "heirloom"],
+    materials: ["Oregon Black Walnut", "Cold-Pressed Linseed Oil", "NTAG215 Silicon"],
+    isFollowed: false,
+    royaltyBps: 800,
+    hardwareSpec: {
+      chipModel: "NXP NTAG215 Serialized",
+      cryptoProtocol: "Password Protected Dynamic NDEF",
+      uid: "04:D8:1A:33:90:5E:80",
+      frequency: "13.56 MHz",
+      memoryCapacity: "504 Bytes",
+      tamperDetection: false,
+      onChainContract: "0x72A8...089c",
+    },
+    makerNotes: "Finished with five coats of hand-rubbed tung oil.",
+  },
+  {
+    id: "prod_008",
+    sku: "TS-OAK-CSL-004",
+    brandId: "b0000002-0000-0000-0000-000000000002",
+    brandHandle: "timber-stone",
+    title: "Japanese White Oak Chisel Roll",
+    description:
+      "Heavy 18oz duck canvas tool roll with Japanese white oak handled dovetail chisels.",
+    price: 13800, // $138.00
+    stock: 4,
+    maxStock: 12,
+    demandSignals: 23,
+    chipTier: "NTAG424_DNA",
+    imageUrl: "/mock/chisel.jpg",
+    tags: ["tools", "chisels", "oak", "japanese-steel"],
+    materials: ["18oz Duck Canvas", "Japanese White Oak", "Hitachi White Paper Steel"],
+    isFollowed: false,
+    royaltyBps: 1000,
+    hardwareSpec: {
+      chipModel: "NXP NTAG424 DNA",
+      cryptoProtocol: "AES-128 SUN-CMAC Dynamic Verification",
+      uid: "04:EA:44:91:2C:19:80",
+      frequency: "13.56 MHz",
+      memoryCapacity: "416 Bytes",
+      tamperDetection: true,
+      onChainContract: "0x72A8...089c",
+    },
+    makerNotes: "Hand-forged blades laminated with soft iron backing.",
+  },
+  {
+    id: "prod_009",
+    sku: "SF-BRS-CMP-001",
+    brandId: "b0000003-0000-0000-0000-000000000003",
+    brandHandle: "solstice-foundry",
+    title: "Mariners Pocket Sundial & Compass",
+    description:
+      "Solid marine brass pocket sundial with liquid-damped magnetic compass needle and laser ledger inscription.",
+    price: 8900, // $89.00
+    stock: 6,
+    maxStock: 15,
+    demandSignals: 29,
+    chipTier: "QR_REGISTRY",
+    imageUrl: "/mock/compass.jpg",
+    tags: ["brass", "compass", "sundial", "maritime"],
+    materials: ["Marine C360 Brass", "Sapphire Glass Bearing", "Damped Needle"],
+    isFollowed: false,
+    royaltyBps: 650,
+    hardwareSpec: {
+      chipModel: "Optical High-Density Micro-QR",
+      cryptoProtocol: "Static Makerverse SHA-256 Ledger Anchor",
+      uid: "QR-SF-2026-CMP-001",
+      frequency: "Optical",
+      memoryCapacity: "Direct URL + EIP-191 Signature Hash",
+      tamperDetection: false,
+      onChainContract: "0x9C3d...0a19",
+    },
+    makerNotes: "Calibrated for 45° North latitude navigation.",
+  },
 ];
 
-// ─── Shoppable Spatial Posts ──────────────────────────────────────────────────
+// ─── Real Shoppable Spatial Posts ───────────────────────────────────────────
 
 export const SHOPPABLE_POSTS: ShoppablePost[] = [
   {
     id: "post_001",
+    brandId: "b0000001-0000-0000-0000-000000000001",
     imageUrl: "/mock/post-booth-1.jpg",
     caption: "Saturday morning booth setup at Hawthorne District market. Natural morning light hitting the blackened copper and pueblo leather pieces.",
     location: "Portland Saturday Market · Booth 14",
@@ -272,6 +411,7 @@ export const SHOPPABLE_POSTS: ShoppablePost[] = [
   },
   {
     id: "post_002",
+    brandId: "b0000001-0000-0000-0000-000000000001",
     imageUrl: "/mock/post-workshop.jpg",
     caption: "Anvil tuning day in the studio. 24 copper keyring batches cooling on the refractory brick after beeswax quenching.",
     location: "The Forge Studio · Central Eastside PDX",
@@ -282,6 +422,7 @@ export const SHOPPABLE_POSTS: ShoppablePost[] = [
   },
   {
     id: "post_003",
+    brandId: "b0000001-0000-0000-0000-000000000001",
     imageUrl: "/mock/post-booth-2.jpg",
     caption: "Horween Dublin wallet restocks are live for the Maker Faire showcase. Only 3 serialized units remaining in this lot.",
     location: "Maker Faire PDX · Exhibition Hall B",
@@ -292,3 +433,22 @@ export const SHOPPABLE_POSTS: ShoppablePost[] = [
     ],
   },
 ];
+
+// ─── Helper Functions ────────────────────────────────────────────────────────
+
+export function getBrandByHandle(handle: string): BrandPassport | null {
+  const normalized = handle.toLowerCase().replace(/^@/, "");
+  return ALL_BRANDS.find((b) => b.handle.toLowerCase() === normalized) || null;
+}
+
+export function getProductsByBrandHandle(handle: string): Product[] {
+  const brand = getBrandByHandle(handle);
+  if (!brand) return [];
+  return PRODUCTS.filter((p) => p.brandId === brand.id || p.brandHandle === brand.handle);
+}
+
+export function getPostsByBrandHandle(handle: string): ShoppablePost[] {
+  const brand = getBrandByHandle(handle);
+  if (!brand) return [];
+  return SHOPPABLE_POSTS.filter((p) => p.brandId === brand.id);
+}

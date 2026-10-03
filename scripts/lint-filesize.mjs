@@ -12,9 +12,9 @@ const SCAN_DIRS = ['app', 'components', 'lib'];
 // Files here are strictly capped at their exact legacy baseline size and must NOT grow larger.
 // When refactored down below standard thresholds, files are removed from this list.
 const LEGACY_EXEMPTIONS = new Map([
-  ['app/(shop)/[brandId]/page.tsx', 1459],
+  ['app/(shop)/[brandId]/page.tsx', 1249],
   ['components/admin/POSTerminal.tsx', 1244],
-  ['components/admin/HoldEngineMonitor.tsx', 1054],
+  ['components/admin/HoldEngineMonitor.tsx', 1049],
   ['components/admin/BoothEngine.tsx', 1058],
   ['lib/redis/holdEngine.ts', 1058],
 ]);

@@ -266,14 +266,9 @@ function HoldSummaryBar({
 
 // ─── Payload Inspection Modal ──────────────────────────────────────────────────
 
-function PayloadModal({
-  hold,
-  onClose,
-}: {
-  hold: HoldEntry | null;
-  onClose: () => void;
-}) {
+function PayloadModal({ hold, onClose }: { hold: HoldEntry | null; onClose: () => void }) {
   const [copied, setCopied] = useState(false);
+  const [mountTime] = useState(() => Date.now());
   if (!hold) return null;
 
   const redisHash = {
@@ -289,7 +284,7 @@ function PayloadModal({
     initial_ttl_seconds: hold.ttlSeconds,
     created_at_iso: new Date(hold.createdAt).toISOString(),
     expires_at_iso: new Date(hold.expiresAt).toISOString(),
-    remaining_ms: Math.max(0, hold.expiresAt - Date.now()),
+    remaining_ms: Math.max(0, hold.expiresAt - mountTime),
     retry_count: hold.retryCount ?? 0,
     concurrency_engine: "Lua Atomic Script (NIST SP 800-38B Verified)",
   };
