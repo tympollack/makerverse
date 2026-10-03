@@ -4,10 +4,26 @@
  *  1. lib/nfc/cmac.ts
  *  2. lib/redis/holdEngine.ts
  *  3. lib/types/events.ts
+ *  4. lib/version (EcosystemVersion, FeatureGateEngine, Middleware, Handshake)
  */
 
 import assert from "assert";
 import crypto from "crypto";
+import {
+  EcosystemVersion,
+  SemVerRange,
+  FeatureGateEngine,
+  createVersionedPayload,
+  parseVersionedPayload,
+  createStreamVersionInterceptor,
+  createApiVersionInterceptor,
+  IncompatibleVersionError,
+  validateClientVersion,
+  VersionLifecycleEventEmitter,
+  VERSION_LIFECYCLE_EVENTS,
+  MakerverseSDK,
+  createMakerverseSDK,
+} from "./lib/version";
 import {
   REDIS_STREAMS,
   CatalogRestockPayloadSchema,
@@ -598,6 +614,101 @@ async function runAllTests() {
     const serialized = serializeStreamEvent(taggedEvent);
     const deserialized = parseStreamEvent(REDIS_STREAMS.SOCIAL, serialized);
     assert.strictEqual(deserialized.event_type, "cozy.product_tagged");
+  });
+
+  console.log("\n─── 4. Shared SDK Semantic Versioning & Governance Engine ─────────");
+
+  await test("EcosystemVersion Parsing, Comparison Operators & Range Checks", () => {
+    const v120 = EcosystemVersion.parse("v1.2.0");
+    assert.strictEqual(v120.major, 1);
+    assert.strictEqual(v120.minor, 2);
+    assert.strictEqual(v120.revision, 0);
+    assert.strictEqual(v120.toString(), "v1.2.0");
+    assert.strictEqual(v120.format(false), "1.2.0");
+
+    const v110 = EcosystemVersion.parse("1.1.0");
+    const v200 = EcosystemVersion.parse("v2.0.0");
+
+    // Precedence and comparison operators
+    assert.ok(v120.greaterThan(v110));
+    assert.ok(v110.lessThan(v120));
+    assert.ok(v120.greaterThanOrEqual(v120));
+    assert.ok(v200.greaterThan(v120));
+    assert.ok(v120.equals(EcosystemVersion.parse("1.2.0")));
+
+    // Range checks
+    assert.ok(v120.satisfies("^1.0.0"));
+    assert.ok(v120.satisfies("~1.2.0"));
+    assert.ok(v120.satisfies(">=1.0.0 <2.0.0"));
+    assert.ok(!v120.satisfies("^2.0.0"));
+    assert.ok(!v120.satisfies("~1.1.0"));
+
+    // Backward compatibility rules
+    assert.ok(v120.isCompatibleWith("1.0.0"));
+    assert.ok(v120.isCompatibleWith("1.2.0"));
+    assert.ok(!v120.isCompatibleWith("1.3.0"));
+    assert.ok(!v120.isCompatibleWith("2.0.0"));
+  });
+
+  await test("FeatureGateEngine SemVer Threshold & Constraint Evaluation", () => {
+    const engine = new FeatureGateEngine("1.2.0");
+
+    assert.ok(engine.supportsFeature("REDIS_STREAM_V2_ENVELOPE")); // min 1.0.0
+    assert.ok(engine.supportsFeature("CART_EXPIRY_RECOVERY")); // min 1.1.0
+    assert.ok(engine.supportsFeature("NFC_DYNAMIC_TAP_V2")); // min 1.2.0
+    assert.ok(!engine.supportsFeature("SPATIAL_AR_TAGGING")); // min 1.3.0
+    assert.ok(!engine.supportsFeature("BIOMETRIC_CHECKOUT")); // min 2.0.0
+
+    // Dynamic client version update
+    engine.setClientVersion("1.3.0");
+    assert.ok(engine.supportsFeature("SPATIAL_AR_TAGGING"));
+  });
+
+  await test("Versioned Payload Guardrails & Stream Interceptor Rejection", () => {
+    const payload = createVersionedPayload({ message: "hello" }, "1.2.0", { node: "edge-1" });
+    assert.strictEqual(payload.version, "1.2.0");
+    assert.strictEqual(payload.data.message, "hello");
+
+    const parsed = parseVersionedPayload(payload);
+    assert.strictEqual(parsed.version.toString(), "v1.2.0");
+
+    const interceptor = createStreamVersionInterceptor({ sdkVersion: "1.2.0" });
+    const passed = interceptor.intercept(payload);
+    assert.strictEqual((passed.data as any).message, "hello");
+
+    // Major breaking version jump rejection
+    const breakingPayload = { version: "2.0.0", data: { breaking: true } };
+    assert.throws(() => interceptor.intercept(breakingPayload), IncompatibleVersionError);
+  });
+
+  await test("Minimum Supported Version Handshake & Lifecycle Events", () => {
+    const gatewayConfig = {
+      gatewayVersion: "1.5.0",
+      minSupportedVersion: "1.1.0",
+      recommendedVersion: "1.4.0",
+      deprecatedVersions: ["1.1.0"],
+    };
+
+    const resCompatible = validateClientVersion("1.4.0", gatewayConfig);
+    assert.strictEqual(resCompatible.status, "compatible");
+
+    const resRec = validateClientVersion("1.2.0", gatewayConfig);
+    assert.strictEqual(resRec.status, "update_recommended");
+
+    const resDep = validateClientVersion("1.1.0", gatewayConfig);
+    assert.strictEqual(resDep.status, "deprecated");
+
+    const resForce = validateClientVersion("1.0.0", gatewayConfig);
+    assert.strictEqual(resForce.status, "force_update_required");
+    assert.strictEqual(resForce.actionRequired, true);
+
+    const emitter = new VersionLifecycleEventEmitter();
+    let eventReceived = "";
+    emitter.on(VERSION_LIFECYCLE_EVENTS.ON_FORCE_UPDATE_REQUIRED, (r) => {
+      eventReceived = r.status;
+    });
+    emitter.executeHandshake("1.0.0", gatewayConfig);
+    assert.strictEqual(eventReceived, "force_update_required");
   });
 
   console.log("\n==================================================================");

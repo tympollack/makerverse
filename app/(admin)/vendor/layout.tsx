@@ -1,4 +1,4 @@
-﻿// app/(admin)/vendor/layout.tsx
+// app/(admin)/vendor/layout.tsx
 "use client";
 
 import { useState } from "react";
@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { EcosystemTelemetryBar } from "@/components/admin/EcosystemTelemetryBar";
+import { VersionReleaseBadge } from "@/components/admin/VersionReleaseBadge";
 
 // ─── Nav Items ────────────────────────────────────────────────────────────────
 
@@ -82,9 +83,12 @@ export default function VendorLayout({ children }: { children: React.ReactNode }
                   transition={{ duration: 0.15 }}
                   className="flex flex-col truncate"
                 >
-                  <span className="font-mono text-xs font-bold text-orange-200 tracking-wider">
-                    MAKERVERSE
-                  </span>
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-mono text-xs font-bold text-orange-200 tracking-wider">
+                      MAKERVERSE
+                    </span>
+                    <VersionReleaseBadge variant="badge" />
+                  </div>
                   <span className="font-mono text-[9px] text-white/35 uppercase tracking-widest">
                     Vendor Admin
                   </span>
@@ -144,15 +148,19 @@ export default function VendorLayout({ children }: { children: React.ReactNode }
 
         {/* Studio Provenance Seal */}
         {!collapsed && (
-          <div className="px-3 pb-3">
+          <div className="px-3 pb-3 space-y-2">
             <div className="p-2.5 rounded-lg bg-white/3 border border-white/6 flex items-center gap-2.5">
               <div className="w-6 h-6 rounded-md bg-[#CC5500]/15 border border-[#CC5500]/30 flex items-center justify-center flex-shrink-0">
                 <ShieldCheck className="w-3.5 h-3.5 text-[#CC5500]" />
               </div>
-              <div className="min-w-0">
+              <div className="min-w-0 flex-1">
                 <p className="text-[10px] font-semibold text-white/80 truncate">The Forge Collective</p>
                 <p className="text-[9px] font-mono text-white/30 truncate">0x4f3E...9aB2 · Verified</p>
               </div>
+            </div>
+            <div className="px-2 py-1 rounded bg-black/30 border border-white/5 flex items-center justify-between">
+              <span className="font-mono text-[9px] text-white/35">makerverse_sdk</span>
+              <VersionReleaseBadge variant="subtle" />
             </div>
           </div>
         )}

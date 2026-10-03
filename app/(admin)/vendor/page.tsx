@@ -14,6 +14,7 @@ import { FrostedCard } from "@/components/ui/FrostedCard";
 import { MonoValue, PriceTag } from "@/components/ui/MonoValue";
 import { StatusBadge, ChipTierBadge } from "@/components/ui/StatusBadge";
 import { CountdownTimer } from "@/components/ui/CountdownTimer";
+import { VersionReleaseBadge } from "@/components/admin/VersionReleaseBadge";
 import { TELEMETRY, ACTIVE_HOLDS, INVENTORY_ITEMS, POS_TRANSACTIONS } from "@/lib/mock/adminData";
 import Link from "next/link";
 
@@ -51,6 +52,15 @@ const STAT_CARDS = [
 export default function VendorDashboardPage() {
   return (
     <div className="space-y-8 max-w-5xl">
+      {/* Gateway & SDK Release Banner */}
+      <motion.div
+        initial={{ opacity: 0, y: -6 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.25 }}
+      >
+        <VersionReleaseBadge variant="banner" />
+      </motion.div>
+
       {/* Stat cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {STAT_CARDS.map((stat, i) => (

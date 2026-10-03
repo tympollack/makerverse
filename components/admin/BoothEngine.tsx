@@ -32,6 +32,7 @@ import {
 } from "lucide-react";
 import { FrostedCard } from "@/components/ui/FrostedCard";
 import { MonoValue, ChipUID } from "@/components/ui/MonoValue";
+import { VersionReleaseBadge } from "@/components/admin/VersionReleaseBadge";
 import {
   MOCK_INSTALLATIONS,
   INITIAL_GUESTBOOK_ENTRIES,
@@ -299,6 +300,7 @@ export function BoothEngine() {
               <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 font-semibold uppercase tracking-wider">
                 ● Live Engine
               </span>
+              <VersionReleaseBadge variant="pill" />
             </div>
             <p className="text-xs font-mono text-white/40 mt-0.5 truncate">
               {activeStation.name} · {activeStation.location} · {activeStation.hardwareUid}
