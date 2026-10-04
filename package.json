@@ -6,10 +6,16 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint && node scripts/lint-filesize.mjs",
+    "lint:filesize": "node scripts/lint-filesize.mjs",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "test:watch": "vitest",
+    "db:seed": "vitest run lib/db/seed.ts"
   },
   "dependencies": {
-    "@types/ioredis": "^4.28.10",
+    "@digitalcanopy/ui": "^0.1.2",
+    "@supabase/supabase-js": "^2.112.4",
     "clsx": "^2.1.1",
     "framer-motion": "^13.1.1",
     "ioredis": "^6.0.0",
@@ -17,17 +23,28 @@
     "next": "16.3.2",
     "react": "19.2.8",
     "react-dom": "19.2.8",
+    "react-native-web": "^0.21.2",
     "tailwind-merge": "^3.6.0",
     "zod": "^4.4.3"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
+    "@testing-library/dom": "^10.4.1",
+    "@testing-library/jest-dom": "^7.0.1",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.6",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@types/react-native": "^0.72.8",
+    "@vitejs/plugin-react": "^6.1.0",
+    "@vitest/coverage-v8": "^4.1.11",
     "eslint": "^9",
     "eslint-config-next": "16.3.2",
+    "jsdom": "^30.0.1",
+    "msw": "^2.15.0",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^4.1.11"
   }
 }

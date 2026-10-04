@@ -31,9 +31,11 @@ import { FrostedCard } from "@/components/ui/FrostedCard";
 import { MonoValue } from "@/components/ui/MonoValue";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { CountdownTimer, TTLBar, formatTTL } from "@/components/ui/CountdownTimer";
+import { VersionReleaseBadge } from "@/components/admin/VersionReleaseBadge";
 import { ACTIVE_HOLDS } from "@/lib/mock/adminData";
 import type { HoldEntry, HoldState } from "@/lib/mock/adminData";
 import { cn } from "@/lib/utils";
+import { ModalShell } from "@digitalcanopy/ui";
 
 // ─── Stream Event Types ────────────────────────────────────────────────────────
 
@@ -264,14 +266,9 @@ function HoldSummaryBar({
 
 // ─── Payload Inspection Modal ──────────────────────────────────────────────────
 
-function PayloadModal({
-  hold,
-  onClose,
-}: {
-  hold: HoldEntry | null;
-  onClose: () => void;
-}) {
+function PayloadModal({ hold, onClose }: { hold: HoldEntry | null; onClose: () => void }) {
   const [copied, setCopied] = useState(false);
+  const [mountTime] = useState(() => Date.now());
   if (!hold) return null;
 
   const redisHash = {
@@ -287,7 +284,7 @@ function PayloadModal({
     initial_ttl_seconds: hold.ttlSeconds,
     created_at_iso: new Date(hold.createdAt).toISOString(),
     expires_at_iso: new Date(hold.expiresAt).toISOString(),
-    remaining_ms: Math.max(0, hold.expiresAt - Date.now()),
+    remaining_ms: Math.max(0, hold.expiresAt - mountTime),
     retry_count: hold.retryCount ?? 0,
     concurrency_engine: "Lua Atomic Script (NIST SP 800-38B Verified)",
   };
@@ -301,50 +298,33 @@ function PayloadModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm">
-      <motion.div
-        initial={{ opacity: 0, scale: 0.95, y: 12 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.95, y: 12 }}
-        transition={{ duration: 0.2 }}
-        className="w-full max-w-xl bg-[#171717] border border-white/15 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh]"
-      >
-        <div className="flex items-center justify-between px-5 py-4 border-b border-white/10 bg-white/3">
-          <div className="flex items-center gap-2.5">
-            <Code2 className="w-4 h-4 text-orange-400" />
-            <span className="font-mono text-xs font-semibold text-white/90">
-              Redis Hash & State Machine Inspector
-            </span>
-          </div>
-          <button
-            onClick={onClose}
-            className="p-1 rounded-lg text-white/40 hover:text-white hover:bg-white/10 transition-colors"
-          >
-            <X className="w-4 h-4" />
-          </button>
+    <ModalShell
+      isOpen={true}
+      onClose={onClose}
+      title="Redis Hash & State Machine Inspector"
+      icon={<Code2 className="w-4 h-4 text-orange-400" />}
+      className="w-full max-w-xl bg-[#171717] border border-white/15 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh]"
+      headerClassName="flex items-center justify-between px-5 py-4 border-b border-white/10 bg-white/3"
+      bodyClassName="p-5 overflow-y-auto space-y-4"
+    >
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <StatusBadge variant={hold.state} />
+          <span className="font-mono text-[10px] text-white/40">{hold.productTitle}</span>
         </div>
+        <button
+          onClick={copyPayload}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 text-xs font-mono text-white/70 transition-colors"
+        >
+          {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+          {copied ? "Copied" : "Copy JSON"}
+        </button>
+      </div>
 
-        <div className="p-5 overflow-y-auto space-y-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <StatusBadge variant={hold.state} />
-              <span className="font-mono text-[10px] text-white/40">{hold.productTitle}</span>
-            </div>
-            <button
-              onClick={copyPayload}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 text-xs font-mono text-white/70 transition-colors"
-            >
-              {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-              {copied ? "Copied" : "Copy JSON"}
-            </button>
-          </div>
-
-          <pre className="p-4 rounded-xl bg-black/60 border border-white/8 text-[11px] font-mono text-cyan-300/90 overflow-x-auto leading-relaxed selection:bg-cyan-500/30">
-            {jsonStr}
-          </pre>
-        </div>
-      </motion.div>
-    </div>
+      <pre className="p-4 rounded-xl bg-black/60 border border-white/8 text-[11px] font-mono text-cyan-300/90 overflow-x-auto leading-relaxed selection:bg-cyan-500/30">
+        {jsonStr}
+      </pre>
+    </ModalShell>
   );
 }
 
@@ -927,7 +907,7 @@ export function HoldEngineMonitor() {
       {/* Header & simulation toolbar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2.5">
+          <div className="flex items-center gap-2.5 flex-wrap">
             <h1 className="text-xl font-bold text-white tracking-wide">
               Commerce Hold Engine Monitor
             </h1>
@@ -935,6 +915,7 @@ export function HoldEngineMonitor() {
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
               Redis Live Engine
             </span>
+            <VersionReleaseBadge variant="pill" />
           </div>
           <p className="text-xs font-mono text-white/40 mt-1">
             Distributed 600s TTL State Machine · Atomic Lua Concurrency · Redis Stream Bus

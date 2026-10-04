@@ -1,11 +1,13 @@
-﻿// components/admin/EcosystemTelemetryBar.tsx
+// components/admin/EcosystemTelemetryBar.tsx
 "use client";
 
 import { useEffect, useState } from "react";
 import { Users, DollarSign, Wifi, WifiOff, Sparkles } from "lucide-react";
 import { MonoValue } from "@/components/ui/MonoValue";
+import { VersionReleaseBadge } from "@/components/admin/VersionReleaseBadge";
 import { TELEMETRY } from "@/lib/mock/adminData";
 import { cn } from "@/lib/utils";
+import { AtmosphericBadge } from "@digitalcanopy/ui";
 
 interface EcosystemTelemetryBarProps {
   className?: string;
@@ -37,13 +39,7 @@ export function EcosystemTelemetryBar({ className, condensed = false }: Ecosyste
     >
       {/* Left: Section label & Live Pulse */}
       <div className="flex items-center gap-2 flex-shrink-0">
-        <div className="flex items-center gap-1.5 px-2 py-0.5 rounded bg-orange-500/10 border border-orange-500/20 text-[10px] font-mono text-orange-400">
-          <span className="relative flex h-1.5 w-1.5">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-orange-400 opacity-75" />
-            <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-orange-500" />
-          </span>
-          <span className="font-semibold tracking-wider uppercase">Live Telemetry</span>
-        </div>
+        <AtmosphericBadge label="LIVE TELEMETRY" variant="telemetry" statusDot pulse size="sm" />
         {!condensed && (
           <span className="hidden md:inline font-mono text-[10px] text-white/30">
             Node: us-west-pdx-01
@@ -119,8 +115,10 @@ export function EcosystemTelemetryBar({ className, condensed = false }: Ecosyste
         </div>
       </div>
 
-      {/* Right: Edge Node Connectivity Status & Latency */}
+      {/* Right: Edge Node Connectivity Status, Latency & SDK Release Badge */}
       <div className="flex items-center gap-2.5 ml-auto sm:ml-0 flex-shrink-0">
+        <VersionReleaseBadge variant="pill" />
+
         <div
           className={cn(
             "flex items-center gap-2 px-2.5 py-1 rounded-lg bg-white/5 border border-white/8 transition-all duration-300",
