@@ -948,28 +948,28 @@ export async function refreshCartHold(
   reason = "payment_retry_extension",
   client: RedisClientInterface = defaultClient
 ): Promise<RefreshHoldResult> {
-  const existingRaw = await client.get(REDIS_KEYS.hold(holdId));
-  let productId = "";
-  if (existingRaw) {
-    try {
-      const parsed = JSON.parse(existingRaw);
-      productId = parsed.productId || "";
-    } catch {
-      // noop
-    }
-  }
-
-  const nowMs = Date.now();
-  const eventId = crypto.randomUUID();
-
-  const keys = [
-    REDIS_KEYS.hold(holdId),
-    REDIS_KEYS.COMMERCE_STREAM,
-    REDIS_KEYS.activeHolds(productId),
-  ];
-  const args = [extensionSeconds, nowMs, reason, eventId];
-
   try {
+    const existingRaw = await client.get(REDIS_KEYS.hold(holdId));
+    let productId = "";
+    if (existingRaw) {
+      try {
+        const parsed = JSON.parse(existingRaw);
+        productId = parsed.productId || "";
+      } catch {
+        // noop
+      }
+    }
+
+    const nowMs = Date.now();
+    const eventId = crypto.randomUUID();
+
+    const keys = [
+      REDIS_KEYS.hold(holdId),
+      REDIS_KEYS.COMMERCE_STREAM,
+      REDIS_KEYS.activeHolds(productId),
+    ];
+    const args = [extensionSeconds, nowMs, reason, eventId];
+
     const rawResult = (await client.eval(
       REFRESH_HOLD_LUA,
       keys.length,
@@ -1014,30 +1014,30 @@ export async function releaseCartHold(
   reason: HoldReleaseReason = "user_cancelled",
   client: RedisClientInterface = defaultClient
 ): Promise<ReleaseHoldResult> {
-  // First read hold to know productId if needed for keys
-  const existingRaw = await client.get(REDIS_KEYS.hold(holdId));
-  let productId = "";
-  if (existingRaw) {
-    try {
-      const parsed = JSON.parse(existingRaw);
-      productId = parsed.productId || "";
-    } catch {
-      // noop
-    }
-  }
-
-  const nowMs = Date.now();
-  const eventId = crypto.randomUUID();
-
-  const keys = [
-    REDIS_KEYS.hold(holdId),
-    REDIS_KEYS.stockLock(productId),
-    REDIS_KEYS.COMMERCE_STREAM,
-    REDIS_KEYS.activeHolds(productId),
-  ];
-  const args = [reason, nowMs, eventId];
-
   try {
+    // First read hold to know productId if needed for keys
+    const existingRaw = await client.get(REDIS_KEYS.hold(holdId));
+    let productId = "";
+    if (existingRaw) {
+      try {
+        const parsed = JSON.parse(existingRaw);
+        productId = parsed.productId || "";
+      } catch {
+        // noop
+      }
+    }
+
+    const nowMs = Date.now();
+    const eventId = crypto.randomUUID();
+
+    const keys = [
+      REDIS_KEYS.hold(holdId),
+      REDIS_KEYS.stockLock(productId),
+      REDIS_KEYS.COMMERCE_STREAM,
+      REDIS_KEYS.activeHolds(productId),
+    ];
+    const args = [reason, nowMs, eventId];
+
     const rawResult = (await client.eval(
       RELEASE_HOLD_LUA,
       keys.length,
@@ -1082,39 +1082,39 @@ export async function fulfillCartHold(
   params: FulfillHoldParams,
   client: RedisClientInterface = defaultClient
 ): Promise<FulfillHoldResult> {
-  const { holdId, orderId, totalCents, txHash = "", chipUid = "" } = params;
-
-  const existingRaw = await client.get(REDIS_KEYS.hold(holdId));
-  if (!existingRaw) {
-    return {
-      success: false,
-      code: "HOLD_NOT_FOUND",
-      error: `Cart hold ${holdId} not found or already expired/fulfilled`,
-    };
-  }
-
-  let productId = "";
   try {
-    const parsed = JSON.parse(existingRaw);
-    productId = parsed.productId || "";
-  } catch {
-    // noop
-  }
+    const { holdId, orderId, totalCents, txHash = "", chipUid = "" } = params;
 
-  const nowMs = Date.now();
-  const eventId = crypto.randomUUID();
+    const existingRaw = await client.get(REDIS_KEYS.hold(holdId));
+    if (!existingRaw) {
+      return {
+        success: false,
+        code: "HOLD_NOT_FOUND",
+        error: `Cart hold ${holdId} not found or already expired/fulfilled`,
+      };
+    }
 
-  const keys = [
-    REDIS_KEYS.hold(holdId),
-    REDIS_KEYS.stockLock(productId),
-    REDIS_KEYS.productStock(productId),
-    REDIS_KEYS.COMMERCE_STREAM,
-    REDIS_KEYS.activeHolds(productId),
-  ];
+    let productId = "";
+    try {
+      const parsed = JSON.parse(existingRaw);
+      productId = parsed.productId || "";
+    } catch {
+      // noop
+    }
 
-  const args = [orderId, totalCents, txHash, chipUid, nowMs, eventId];
+    const nowMs = Date.now();
+    const eventId = crypto.randomUUID();
 
-  try {
+    const keys = [
+      REDIS_KEYS.hold(holdId),
+      REDIS_KEYS.stockLock(productId),
+      REDIS_KEYS.productStock(productId),
+      REDIS_KEYS.COMMERCE_STREAM,
+      REDIS_KEYS.activeHolds(productId),
+    ];
+
+    const args = [orderId, totalCents, txHash, chipUid, nowMs, eventId];
+
     const rawResult = (await client.eval(
       FULFILL_HOLD_LUA,
       keys.length,

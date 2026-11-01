@@ -7,7 +7,8 @@ import { resolveShopperIdentity } from "@/lib/auth/shopperAuth";
 export async function POST(request: NextRequest) {
   try {
     const shopper = await resolveShopperIdentity(request);
-    if (!shopper.isAuthenticated && !shopper.isPrivileged) {
+    // Anonymous unauthenticated callers without a session identifier are rejected (Issue 18)
+    if (!shopper.isAuthenticated && !shopper.isPrivileged && shopper.userId === "shopper_anon") {
       return NextResponse.json(
         { error: "Authentication required to signal product interest" },
         { status: 401 }
@@ -28,46 +29,76 @@ export async function POST(request: NextRequest) {
 
     const supabase = getSupabaseServiceRoleClient();
     if (supabase) {
-      try {
-        if (!active) {
-          // Un-signal interest: remove persisted signal
-          await supabase
-            .from("demand_signals")
-            .delete()
-            .match({ product_id: productId, user_id: shopper.userId } as any);
+      if (!shopper.isAuthenticated && !shopper.isPrivileged) {
+        return NextResponse.json(
+          { error: "Authentication required to signal product interest" },
+          { status: 401 }
+        );
+      }
 
-          return NextResponse.json({
-            success: true,
-            productId,
-            active: false,
-            demandSignals: Math.max(0, (count ?? product.demandSignals) - 1),
-          });
+      if (!active) {
+        // Un-signal interest: remove persisted signal
+        const { error: delErr } = await (supabase.from("demand_signals" as any) as any)
+          .delete()
+          .match({ product_id: productId, user_id: shopper.userId });
+
+        if (delErr) {
+          return NextResponse.json({ error: delErr.message }, { status: 400 });
         }
 
-        // Signal interest via RPC or table upsert
-        const { data, error } = await (supabase as any).rpc("signal_product_interest", {
-          p_product_id: productId,
+        const { count: sigCount, error: countErr } = await (supabase.from("demand_signals" as any) as any)
+          .select("*", { count: "exact", head: true })
+          .eq("product_id", productId);
+
+        return NextResponse.json({
+          success: true,
+          productId,
+          active: false,
+          demandSignals: countErr ? Math.max(0, (count ?? product.demandSignals) - 1) : (sigCount ?? 0),
         });
+      }
 
-        if (!error && data) {
-          return NextResponse.json({ success: true, active: true, data });
-        }
+      // Signal interest via RPC or table upsert
+      const { data, error: rpcErr } = await (supabase as any).rpc("signal_product_interest", {
+        p_product_id: productId,
+      });
 
-        // Fallback to table insert if RPC unavailable
-        await supabase.from("demand_signals").upsert({
-          product_id: productId,
-          user_id: shopper.userId,
-        } as any);
+      if (!rpcErr && data) {
+        const signalCount =
+          data.total_signals ??
+          data.total_demand_count ??
+          data.total_demand_signals ??
+          ((count ?? product.demandSignals) + 1);
 
         return NextResponse.json({
           success: true,
           productId,
           active: true,
-          demandSignals: (count ?? product.demandSignals) + 1,
+          demandSignals: signalCount,
+          data,
         });
-      } catch (dbErr) {
-        console.warn("[signal] Supabase operation fallback:", dbErr);
       }
+
+      // Fallback to table upsert if RPC unavailable
+      const { error: upsertErr } = await (supabase.from("demand_signals" as any) as any).upsert({
+        product_id: productId,
+        user_id: shopper.userId,
+      });
+
+      if (upsertErr) {
+        return NextResponse.json({ error: upsertErr.message }, { status: 400 });
+      }
+
+      const { count: sigCount, error: countErr } = await (supabase.from("demand_signals" as any) as any)
+        .select("*", { count: "exact", head: true })
+        .eq("product_id", productId);
+
+      return NextResponse.json({
+        success: true,
+        productId,
+        active: true,
+        demandSignals: countErr ? (count ?? product.demandSignals) + 1 : (sigCount ?? 1),
+      });
     }
 
     // Default simulated response for offline/mock environments

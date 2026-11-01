@@ -12,7 +12,8 @@ export interface ShopperAuthResult {
 
 /**
  * Resolves shopper identity securely from request context.
- * Prevents user spoofing by prioritizing verified session tokens or session headers.
+ * Strictly distinguishes verified authenticated identities (Bearer JWT or service key)
+ * from unverified client-provided session identifiers (x-user-id / x-shopper-session).
  */
 export async function resolveShopperIdentity(
   request: NextRequest,
@@ -20,12 +21,16 @@ export async function resolveShopperIdentity(
 ): Promise<ShopperAuthResult> {
   const authHeader = request.headers.get("authorization");
   const sessionHeader = request.headers.get("x-user-id") || request.headers.get("x-shopper-session");
+  const isTest = process.env.NODE_ENV === "test";
 
   // 1. If Bearer token provided, check Supabase auth / service role
   if (authHeader?.startsWith("Bearer ")) {
     const token = authHeader.substring(7).trim();
     const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-    if ((serviceKey && token === serviceKey) || token === "demo_service_key") {
+    if (
+      (serviceKey && token === serviceKey) ||
+      (isTest && token === "demo_service_key")
+    ) {
       return {
         userId: requestedUserId || "service_role",
         isAuthenticated: true,
@@ -38,10 +43,8 @@ export async function resolveShopperIdentity(
       try {
         const { data: { user }, error } = await supabase.auth.getUser(token);
         if (!error && user) {
-          const isPrivileged =
-            user.app_metadata?.role === "admin" ||
-            user.app_metadata?.role === "vendor" ||
-            user.app_metadata?.role === "service_role";
+          const role = user.app_metadata?.role;
+          const isPrivileged = role === "admin" || role === "service_role";
 
           return {
             userId: user.id,
@@ -57,7 +60,10 @@ export async function resolveShopperIdentity(
 
   // 2. Check for administrative override key
   const adminKey = request.headers.get("x-admin-key");
-  if (adminKey && (adminKey === process.env.ADMIN_API_KEY || adminKey === "admin_mock_key")) {
+  if (
+    adminKey &&
+    (adminKey === process.env.ADMIN_API_KEY || (isTest && adminKey === "admin_mock_key"))
+  ) {
     return {
       userId: requestedUserId || "admin_override",
       isAuthenticated: true,
@@ -65,13 +71,14 @@ export async function resolveShopperIdentity(
     };
   }
 
-  // 3. If explicit session header is provided, use that verified identity
+  // 3. Client session header (unverified guest/session identifier)
+  // NEVER mark unverified headers as isAuthenticated: true (SEC_0002)
   if (sessionHeader) {
     const trimmed = sessionHeader.trim();
     if (/^[a-zA-Z0-9_@.-]{1,64}$/.test(trimmed)) {
       return {
         userId: trimmed,
-        isAuthenticated: true,
+        isAuthenticated: false,
         isPrivileged: false,
       };
     }

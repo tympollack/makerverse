@@ -41,6 +41,7 @@ import { MonoValue, PriceTag, ChipUID } from "@/components/ui/MonoValue";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { VersionReleaseBadge } from "@/components/admin/VersionReleaseBadge";
 import { HardwareInspectionModal } from "@/components/shop/HardwareInspectionModal";
+import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import {
   BRAND_PASSPORT,
   ALL_BRANDS,
@@ -602,10 +603,12 @@ function ShoppablePinMarker({
 
 function SpatialModal({
   post,
+  products = PRODUCTS,
   onClose,
   onSelectProduct,
 }: {
   post: ShoppablePost;
+  products?: Product[];
   onClose: () => void;
   onSelectProduct: (product: Product) => void;
 }) {
@@ -672,7 +675,7 @@ function SpatialModal({
 
             {/* Pulsing Shoppable Pins */}
             {post.pins.map((pin) => {
-              const product = PRODUCTS.find((p) => p.id === pin.productId);
+              const product = products.find((p) => p.id === pin.productId) || PRODUCTS.find((p) => p.id === pin.productId);
               return (
                 <ShoppablePinMarker
                   key={pin.id}
@@ -702,7 +705,7 @@ function SpatialModal({
 
             <div className="space-y-3 flex-1">
               {post.pins.map((pin) => {
-                const product = PRODUCTS.find((p) => p.id === pin.productId);
+                const product = products.find((p) => p.id === pin.productId) || PRODUCTS.find((p) => p.id === pin.productId);
                 if (!product) return null;
                 const isHovered = hoveredPinId === pin.id;
 
@@ -928,17 +931,52 @@ export default function BrandShopPage({
   };
 
   const handleDemandSignal = async (productId: string, newCount: number, active: boolean) => {
+    const prevProduct = productsState.find((p) => p.id === productId);
+    const prevCount = prevProduct?.demandSignals ?? 0;
+
+    // Optimistically update state
     setProductsState((prev) =>
       prev.map((p) => (p.id === productId ? { ...p, demandSignals: newCount } : p))
     );
+
     try {
-      await fetch("/api/products/signal", {
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      const supabase = getSupabaseBrowserClient();
+      if (supabase) {
+        let { data: { session } } = await supabase.auth.getSession();
+        if (!session?.access_token) {
+          const { data: anonData } = await supabase.auth.signInAnonymously().catch(() => ({ data: { session: null } }));
+          session = anonData?.session ?? null;
+        }
+        if (session?.access_token) {
+          headers["Authorization"] = `Bearer ${session.access_token}`;
+        }
+      }
+
+      const res = await fetch("/api/products/signal", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify({ productId, count: newCount, active }),
       });
+
+      if (!res.ok) {
+        // Revert optimistic count on server failure (BUG_0005)
+        setProductsState((prev) =>
+          prev.map((p) => (p.id === productId ? { ...p, demandSignals: prevCount } : p))
+        );
+      } else {
+        const data = await res.json();
+        if (typeof data.demandSignals === "number") {
+          setProductsState((prev) =>
+            prev.map((p) => (p.id === productId ? { ...p, demandSignals: data.demandSignals } : p))
+          );
+        }
+      }
     } catch (e) {
       console.warn("Demand signal API fallback:", e);
+      setProductsState((prev) =>
+        prev.map((p) => (p.id === productId ? { ...p, demandSignals: prevCount } : p))
+      );
     }
   };
 
@@ -1253,6 +1291,7 @@ export default function BrandShopPage({
         {activeSpatialPost && (
           <SpatialModal
             post={activeSpatialPost}
+            products={productsState}
             onClose={() => setActiveSpatialPost(null)}
             onSelectProduct={(product) => {
               setActiveSpatialPost(null);

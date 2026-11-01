@@ -104,50 +104,59 @@ export async function getProductById(idOrSku: string): Promise<Product | null> {
 
   if (supabase) {
     try {
-      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(idOrSku);
-      let query = (supabase.from("products" as any) as any).select("*");
+      // 1. Query by product ID first regardless of ID format (e.g. UUID or bundled prod_001)
+      let { data, error } = await (supabase.from("products" as any) as any)
+        .select("*")
+        .eq("id", idOrSku)
+        .maybeSingle();
 
-      if (isUuid) {
-        query = query.eq("id", idOrSku);
-      } else {
-        query = query.eq("sku", idOrSku);
+      // 2. Fallback to SKU query if no product matches by ID
+      if (!error && !data) {
+        const skuRes = await (supabase.from("products" as any) as any)
+          .select("*")
+          .eq("sku", idOrSku)
+          .maybeSingle();
+        data = skuRes.data;
+        error = skuRes.error;
       }
 
-      const { data, error } = await query.maybeSingle();
+      if (!error) {
+        if (data) {
+          const rawSpec = data.hardware_spec || {};
+          const spec = typeof rawSpec === "object" ? rawSpec : {};
 
-      if (!error && data) {
-        const rawSpec = data.hardware_spec || {};
-        const spec = typeof rawSpec === "object" ? rawSpec : {};
-
-        return {
-          id: data.id,
-          sku: data.sku,
-          title: data.title,
-          description: data.description || "",
-          price: data.price_cents,
-          stock: data.stock_quantity,
-          maxStock: data.max_stock || 24,
-          demandSignals: 0,
-          chipTier: mapHardwareTier(data.hardware_tier),
-          imageUrl: data.image_url || "/mock/keyring.jpg",
-          tags: ["craft", "staging"],
-          materials: data.materials || [],
-          isFollowed: false,
-          royaltyBps: Math.round((data.secondary_royalty_pct || 7.5) * 100),
-          hardwareSpec: {
-            chipModel: spec.chipModel || "NXP NTAG424 DNA",
-            cryptoProtocol: spec.cryptoProtocol || "AES-128 SUN-CMAC Mirror",
-            uid: spec.chipUid || "04:8F:3A:2B:1C:99:01",
-            frequency: spec.frequency || "13.56 MHz (ISO 14443-A)",
-            memoryCapacity: spec.memoryCapacity || "416 Bytes",
-            tamperDetection: Boolean(spec.tamperDetection ?? true),
-            onChainContract: spec.onChainContract || "0x4f3E7a82B9611D9C942e067cFb68EbD7A849aB2",
-          },
-          makerNotes: data.maker_notes || "",
-        };
+          return {
+            id: data.id,
+            sku: data.sku,
+            title: data.title,
+            description: data.description || "",
+            price: data.price_cents,
+            stock: data.stock_quantity,
+            maxStock: data.max_stock || 24,
+            demandSignals: 0,
+            chipTier: mapHardwareTier(data.hardware_tier),
+            imageUrl: data.image_url || "/mock/keyring.jpg",
+            tags: ["craft", "staging"],
+            materials: data.materials || [],
+            isFollowed: false,
+            royaltyBps: Math.round((data.secondary_royalty_pct || 7.5) * 100),
+            hardwareSpec: {
+              chipModel: spec.chipModel || "NXP NTAG424 DNA",
+              cryptoProtocol: spec.cryptoProtocol || "AES-128 SUN-CMAC Mirror",
+              uid: spec.chipUid || "04:8F:3A:2B:1C:99:01",
+              frequency: spec.frequency || "13.56 MHz (ISO 14443-A)",
+              memoryCapacity: spec.memoryCapacity || "416 Bytes",
+              tamperDetection: Boolean(spec.tamperDetection ?? true),
+              onChainContract: spec.onChainContract || "0x4f3E7a82B9611D9C942e067cFb68EbD7A849aB2",
+            },
+            makerNotes: data.maker_notes || "",
+          };
+        }
+        // Authoritative database returned empty result for this ID/SKU
+        return null;
       }
     } catch (err) {
-      console.warn("[getProductById] Falling back to real local dataset:", err);
+      console.warn("[getProductById] Database lookup error:", err);
     }
   }
 

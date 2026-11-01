@@ -38,12 +38,12 @@ export async function verifyAdminAuth(request: NextRequest): Promise<AdminAuthRe
   // 1. Direct match with configured service role key or admin secret
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
   const adminSecret = process.env.ADMIN_API_KEY;
+  const isTest = process.env.NODE_ENV === "test";
 
   if (
     (serviceKey && token === serviceKey) ||
     (adminSecret && token === adminSecret) ||
-    token === "demo_service_key" ||
-    token === "admin_mock_key"
+    (isTest && (token === "demo_service_key" || token === "admin_mock_key"))
   ) {
     return {
       authorized: true,
@@ -58,8 +58,10 @@ export async function verifyAdminAuth(request: NextRequest): Promise<AdminAuthRe
     try {
       const { data: { user }, error } = await supabase.auth.getUser(token);
       if (!error && user) {
-        const role = user.app_metadata?.role || user.user_metadata?.role || "authenticated";
-        if (role === "admin" || role === "vendor" || role === "service_role") {
+        // Enforce secure app_metadata role; never trust user-editable user_metadata (SEC_0006)
+        const role = user.app_metadata?.role;
+        // Strictly restrict administrative routes to platform admins and service roles (SEC_0007)
+        if (role === "admin" || role === "service_role") {
           return {
             authorized: true,
             userId: user.id,
@@ -69,7 +71,7 @@ export async function verifyAdminAuth(request: NextRequest): Promise<AdminAuthRe
         return {
           authorized: false,
           status: 403,
-          error: "Forbidden: Vendor or administrative privileges required",
+          error: "Forbidden: Administrative privileges required",
         };
       }
     } catch {
