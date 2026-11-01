@@ -37,11 +37,11 @@ export async function getAdminInventory(): Promise<InventoryItem[]> {
   const supabase = getSupabaseServerClient();
   if (supabase) {
     try {
-      const { data: products } = await (supabase.from("products" as any) as any)
+      const { data: products, error } = await (supabase.from("products" as any) as any)
         .select("*")
         .order("created_at", { ascending: false });
 
-      if (products && products.length > 0) {
+      if (!error && products) {
         return products.map((p: any) => ({
           id: p.id,
           sku: p.sku,
@@ -66,7 +66,7 @@ export async function getAdminNfcBatchQueue(): Promise<NfcChipEntry[]> {
   const supabase = getSupabaseServerClient();
   if (supabase) {
     try {
-      const { data: chips } = await (supabase.from("physical_chips" as any) as any)
+      const { data: chips, error } = await (supabase.from("physical_chips" as any) as any)
         .select(`
           uid,
           lock_status,
@@ -80,7 +80,7 @@ export async function getAdminNfcBatchQueue(): Promise<NfcChipEntry[]> {
         `)
         .order("created_at", { ascending: false });
 
-      if (chips && chips.length > 0) {
+      if (!error && chips) {
         return chips.map((c: any) => {
           const product = c.products || {};
           const meta = typeof c.metadata === "object" ? c.metadata : {};
@@ -106,7 +106,7 @@ export async function getAdminActiveHolds(): Promise<HoldEntry[]> {
   const supabase = getSupabaseServerClient();
   if (supabase) {
     try {
-      const { data: holds } = await (supabase.from("cart_holds" as any) as any)
+      const { data: holds, error } = await (supabase.from("cart_holds" as any) as any)
         .select(`
           id,
           product_id,
@@ -122,7 +122,7 @@ export async function getAdminActiveHolds(): Promise<HoldEntry[]> {
         .eq("status", "ACTIVE_HOLD")
         .order("created_at", { ascending: false });
 
-      if (holds && holds.length > 0) {
+      if (!error && holds) {
         return holds.map((h: any) => {
           const product = h.products || {};
           const expiresMs = new Date(h.expires_at).getTime();
@@ -153,11 +153,11 @@ export async function getAdminPOSTransactions(): Promise<POSTransaction[]> {
   const supabase = getSupabaseServerClient();
   if (supabase) {
     try {
-      const { data: txs } = await (supabase.from("pos_transactions" as any) as any)
+      const { data: txs, error } = await (supabase.from("pos_transactions" as any) as any)
         .select("*")
         .order("created_at", { ascending: false });
 
-      if (txs && txs.length > 0) {
+      if (!error && txs) {
         return txs.map((t: any) => ({
           txId: t.id,
           mode: t.mode,
@@ -183,11 +183,11 @@ export async function getAdminInstallations(): Promise<BoothInstallation[]> {
   const supabase = getSupabaseServerClient();
   if (supabase) {
     try {
-      const { data: installations } = await (supabase.from("booth_installations" as any) as any)
+      const { data: installations, error } = await (supabase.from("booth_installations" as any) as any)
         .select("*")
         .order("created_at", { ascending: true });
 
-      if (installations && installations.length > 0) {
+      if (!error && installations) {
         return installations.map((i: any) => ({
           id: i.id,
           name: i.name,
@@ -213,11 +213,11 @@ export async function getAdminGuestbook(): Promise<GuestbookEntry[]> {
   const supabase = getSupabaseServerClient();
   if (supabase) {
     try {
-      const { data: entries } = await (supabase.from("guestbook_entries" as any) as any)
+      const { data: entries, error } = await (supabase.from("guestbook_entries" as any) as any)
         .select("*")
         .order("created_at", { ascending: false });
 
-      if (entries && entries.length > 0) {
+      if (!error && entries) {
         return entries.map((e: any) => ({
           id: e.id,
           attendeeHandle: e.attendee_handle,
@@ -243,11 +243,11 @@ export async function getAdminRaffles(): Promise<RaffleAttempt[]> {
   const supabase = getSupabaseServerClient();
   if (supabase) {
     try {
-      const { data: raffles } = await (supabase.from("raffle_attempts" as any) as any)
+      const { data: raffles, error } = await (supabase.from("raffle_attempts" as any) as any)
         .select("*")
         .order("created_at", { ascending: false });
 
-      if (raffles && raffles.length > 0) {
+      if (!error && raffles) {
         return raffles.map((r: any) => ({
           id: r.id,
           attendeeHandle: r.attendee_handle,

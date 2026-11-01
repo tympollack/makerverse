@@ -1,8 +1,9 @@
 // supabase/tests/staging_db_integration.test.ts
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { getBrand, getAllBrands } from "@/lib/db/brands";
 import { getProducts, getProductById } from "@/lib/db/products";
 import { getShoppablePosts } from "@/lib/db/posts";
+import * as serverModule from "@/lib/supabase/server";
 import {
   getAdminTelemetry,
   getAdminInventory,
@@ -148,6 +149,35 @@ describe("Staging Database & Real Datasets Integration Layer", () => {
     it("reports environment configuration status properly", () => {
       const configured = isSupabaseConfigured();
       expect(typeof configured).toBe("boolean");
+    });
+  });
+
+  describe("Empty Database Query Integrity (Issue 5)", () => {
+    it("returns empty array when database query succeeds with zero rows and does not resurrect mock records", async () => {
+      const mockQuery = {
+        select: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockReturnThis(),
+        order: vi.fn().mockReturnThis(),
+        then: (onfulfilled: any) => Promise.resolve({ data: [], error: null }).then(onfulfilled),
+      };
+
+      const mockClient = {
+        from: vi.fn(() => mockQuery),
+      };
+
+      const serverSpy = vi.spyOn(serverModule, "getSupabaseServerClient").mockReturnValue(mockClient as any);
+
+      // An empty brand in DB must return [] and NOT resurrect mock products
+      const products = await getProducts("empty-brand");
+      expect(products).toEqual([]);
+
+      const posts = await getShoppablePosts("empty-brand");
+      expect(posts).toEqual([]);
+
+      const adminProducts = await getAdminInventory();
+      expect(adminProducts).toEqual([]);
+
+      serverSpy.mockRestore();
     });
   });
 });

@@ -31,6 +31,8 @@ export const REDIS_KEYS = {
   stockLock: (productId: string) => `makerverse:stock_lock:${productId}`,
   /** Total physical stock pool */
   productStock: (productId: string) => `makerverse:product_stock:${productId}`,
+  /** Active holds sorted set per product (score: expiresAtMs, member: holdId:qty) */
+  activeHolds: (productId: string) => `makerverse:active_holds:${productId}`,
   /** User active holds set */
   userHolds: (userId: string) => `makerverse:user_holds:${userId}`,
   /** Stream topic */
@@ -153,6 +155,7 @@ local holdKey = KEYS[1]
 local lockKey = KEYS[2]
 local stockKey = KEYS[3]
 local streamKey = KEYS[4]
+local activeHoldsKey = KEYS[5]
 
 local holdId = ARGV[1]
 local productId = ARGV[2]
@@ -164,6 +167,23 @@ local expiresAtMs = tonumber(ARGV[7])
 local sku = ARGV[8]
 local initialStockFallback = tonumber(ARGV[9])
 local eventId = ARGV[10]
+
+-- 0. Reclaim expired holds before checking availability
+if activeHoldsKey then
+  local expired = redis.call('ZRANGEBYSCORE', activeHoldsKey, '-inf', nowMs)
+  for _, item in ipairs(expired) do
+    local colonIdx = string.find(item, ":")
+    if colonIdx then
+      local expQty = tonumber(string.sub(item, colonIdx + 1)) or 0
+      local currentLocked = tonumber(redis.call('GET', lockKey) or "0")
+      local newLocked = math.max(0, currentLocked - expQty)
+      redis.call('SET', lockKey, tostring(newLocked))
+    end
+  end
+  if #expired > 0 then
+    redis.call('ZREMRANGEBYSCORE', activeHoldsKey, '-inf', nowMs)
+  end
+end
 
 -- 1. Check if total stock is configured, seed if fallback provided
 local currentStock = redis.call('GET', stockKey)
@@ -191,8 +211,11 @@ if (currentLocked + qty) > totalStock then
   })
 end
 
--- 4. Atomically increment lock pool
+-- 4. Atomically increment lock pool and track active hold
 redis.call('INCRBY', lockKey, qty)
+if activeHoldsKey then
+  redis.call('ZADD', activeHoldsKey, expiresAtMs, holdId .. ':' .. tostring(qty))
+end
 
 -- 5. Store hold record with TTL
 local holdData = {
@@ -234,6 +257,7 @@ return cjson.encode({
  * Keys:
  *  1: `makerverse:hold:{holdId}`
  *  2: `makerverse:events:commerce`
+ *  3: `makerverse:active_holds:{productId}`
  * 
  * Args:
  *  1: extensionSeconds
@@ -244,6 +268,7 @@ return cjson.encode({
 const REFRESH_HOLD_LUA = `
 local holdKey = KEYS[1]
 local streamKey = KEYS[2]
+local activeHoldsKey = KEYS[3]
 
 local extensionSeconds = tonumber(ARGV[1])
 local nowMs = tonumber(ARGV[2])
@@ -262,6 +287,11 @@ hold.expiresAt = nowMs + (extensionSeconds * 1000)
 hold.ttlSeconds = extensionSeconds
 
 redis.call('SET', holdKey, cjson.encode(hold), 'EX', extensionSeconds)
+
+if activeHoldsKey then
+  redis.call('ZREM', activeHoldsKey, hold.holdId .. ':' .. tostring(hold.qty or 1))
+  redis.call('ZADD', activeHoldsKey, hold.expiresAt, hold.holdId .. ':' .. tostring(hold.qty or 1))
+end
 
 -- Emit commerce.payment_failed (triggering retry flow)
 redis.call('XADD', streamKey, '*',
@@ -285,6 +315,7 @@ return cjson.encode({ success = true, hold = hold })
  *  1: `makerverse:hold:{holdId}`
  *  2: `makerverse:stock_lock:{productId}`
  *  3: `makerverse:events:commerce`
+ *  4: `makerverse:active_holds:{productId}`
  * 
  * Args:
  *  1: reason ('expired' | 'user_cancelled' | 'payment_failed' | 'admin_override')
@@ -295,6 +326,7 @@ const RELEASE_HOLD_LUA = `
 local holdKey = KEYS[1]
 local lockKey = KEYS[2]
 local streamKey = KEYS[3]
+local activeHoldsKey = KEYS[4]
 
 local reason = ARGV[1]
 local nowMs = tonumber(ARGV[2])
@@ -315,6 +347,10 @@ redis.call('SET', lockKey, tostring(newLocked))
 
 -- Delete hold key
 redis.call('DEL', holdKey)
+
+if activeHoldsKey then
+  redis.call('ZREM', activeHoldsKey, hold.holdId .. ':' .. tostring(qty))
+end
 
 -- Emit commerce.reservation_released
 redis.call('XADD', streamKey, '*',
@@ -340,6 +376,7 @@ return cjson.encode({ success = true, releasedHold = hold })
  *  2: `makerverse:stock_lock:{productId}`
  *  3: `makerverse:product_stock:{productId}`
  *  4: `makerverse:events:commerce`
+ *  5: `makerverse:active_holds:{productId}`
  * 
  * Args:
  *  1: orderId
@@ -354,6 +391,7 @@ local holdKey = KEYS[1]
 local lockKey = KEYS[2]
 local stockKey = KEYS[3]
 local streamKey = KEYS[4]
+local activeHoldsKey = KEYS[5]
 
 local orderId = ARGV[1]
 local totalCents = tonumber(ARGV[2])
@@ -382,6 +420,10 @@ redis.call('SET', stockKey, tostring(newStock))
 
 -- 3. Delete hold key
 redis.call('DEL', holdKey)
+
+if activeHoldsKey then
+  redis.call('ZREM', activeHoldsKey, hold.holdId .. ':' .. tostring(qty))
+end
 
 -- 4. Emit commerce.fulfilled
 redis.call('XADD', streamKey, '*',
@@ -416,6 +458,28 @@ return cjson.encode({
 export class InMemoryRedisClient implements RedisClientInterface {
   private store = new Map<string, { val: string; expiresAt?: number }>();
   private streams = new Map<string, Array<{ id: string; fields: Record<string, string> }>>();
+  private activeHolds = new Map<string, Array<{ holdId: string; qty: number; expiresAt: number }>>();
+
+  reconcileExpired(productId: string, nowMs = Date.now()): number {
+    const lockKey = REDIS_KEYS.stockLock(productId);
+    const productHolds = this.activeHolds.get(productId) || [];
+    const validHolds: Array<{ holdId: string; qty: number; expiresAt: number }> = [];
+    let reclaimedQty = 0;
+    for (const h of productHolds) {
+      if (h.expiresAt <= nowMs) {
+        reclaimedQty += h.qty;
+      } else {
+        validHolds.push(h);
+      }
+    }
+    this.activeHolds.set(productId, validHolds);
+    if (reclaimedQty > 0) {
+      const currentLocked = Number(this.getSync(lockKey) ?? 0);
+      const newLocked = Math.max(0, currentLocked - reclaimedQty);
+      this.setSync(lockKey, String(newLocked));
+    }
+    return reclaimedQty;
+  }
 
   private isExpired(key: string): boolean {
     const entry = this.store.get(key);
@@ -513,13 +577,31 @@ export class InMemoryRedisClient implements RedisClientInterface {
       const nowMs = Number(nowMsStr);
       const expiresAtMs = Number(expiresAtMsStr);
 
+      // 0. Reclaim expired holds
+      const productHolds = this.activeHolds.get(String(productId)) || [];
+      const validHolds: Array<{ holdId: string; qty: number; expiresAt: number }> = [];
+      let reclaimedQty = 0;
+      for (const h of productHolds) {
+        if (h.expiresAt <= nowMs) {
+          reclaimedQty += h.qty;
+        } else {
+          validHolds.push(h);
+        }
+      }
+      this.activeHolds.set(String(productId), validHolds);
+
+      let currentLocked = Number(this.getSync(lockKey) ?? 0);
+      if (reclaimedQty > 0) {
+        currentLocked = Math.max(0, currentLocked - reclaimedQty);
+        this.setSync(lockKey, String(currentLocked));
+      }
+
       let currentStock = this.getSync(stockKey);
       if (currentStock === null && initialStockStr !== undefined && initialStockStr !== "") {
         currentStock = String(initialStockStr);
         this.setSync(stockKey, currentStock);
       }
       const totalStock = Number(currentStock ?? 0);
-      const currentLocked = Number(this.getSync(lockKey) ?? 0);
 
       if (currentLocked + qty > totalStock) {
         return JSON.stringify({
@@ -532,6 +614,9 @@ export class InMemoryRedisClient implements RedisClientInterface {
       }
 
       this.setSync(lockKey, String(currentLocked + qty));
+      validHolds.push({ holdId: String(holdId), qty, expiresAt: expiresAtMs });
+      this.activeHolds.set(String(productId), validHolds);
+
       const holdData: HoldRecord = {
         holdId: String(holdId),
         productId: String(productId),
@@ -590,6 +675,13 @@ export class InMemoryRedisClient implements RedisClientInterface {
       hold.ttlSeconds = extSec;
 
       this.setSync(holdKey, JSON.stringify(hold), "EX", extSec);
+
+      const productHolds = this.activeHolds.get(hold.productId) || [];
+      const target = productHolds.find((h) => h.holdId === hold.holdId);
+      if (target) {
+        target.expiresAt = hold.expiresAt;
+      }
+
       this.xaddSync(
         streamKey,
         "*",
@@ -630,6 +722,12 @@ export class InMemoryRedisClient implements RedisClientInterface {
       const newLocked = Math.max(0, currentLocked - qty);
       this.setSync(lockKey, String(newLocked));
       this.delSync(holdKey);
+
+      const productHolds = this.activeHolds.get(hold.productId) || [];
+      this.activeHolds.set(
+        hold.productId,
+        productHolds.filter((h) => h.holdId !== hold.holdId)
+      );
 
       this.xaddSync(
         streamKey,
@@ -678,6 +776,12 @@ export class InMemoryRedisClient implements RedisClientInterface {
       this.setSync(stockKey, String(newStock));
 
       this.delSync(holdKey);
+
+      const productHolds = this.activeHolds.get(hold.productId) || [];
+      this.activeHolds.set(
+        hold.productId,
+        productHolds.filter((h) => h.holdId !== hold.holdId)
+      );
 
       this.xaddSync(
         streamKey,
@@ -777,6 +881,7 @@ export async function createCartHold(
     REDIS_KEYS.stockLock(productId),
     REDIS_KEYS.productStock(productId),
     REDIS_KEYS.COMMERCE_STREAM,
+    REDIS_KEYS.activeHolds(productId),
   ];
 
   const args = [
@@ -843,10 +948,25 @@ export async function refreshCartHold(
   reason = "payment_retry_extension",
   client: RedisClientInterface = defaultClient
 ): Promise<RefreshHoldResult> {
+  const existingRaw = await client.get(REDIS_KEYS.hold(holdId));
+  let productId = "";
+  if (existingRaw) {
+    try {
+      const parsed = JSON.parse(existingRaw);
+      productId = parsed.productId || "";
+    } catch {
+      // noop
+    }
+  }
+
   const nowMs = Date.now();
   const eventId = crypto.randomUUID();
 
-  const keys = [REDIS_KEYS.hold(holdId), REDIS_KEYS.COMMERCE_STREAM];
+  const keys = [
+    REDIS_KEYS.hold(holdId),
+    REDIS_KEYS.COMMERCE_STREAM,
+    REDIS_KEYS.activeHolds(productId),
+  ];
   const args = [extensionSeconds, nowMs, reason, eventId];
 
   try {
@@ -913,6 +1033,7 @@ export async function releaseCartHold(
     REDIS_KEYS.hold(holdId),
     REDIS_KEYS.stockLock(productId),
     REDIS_KEYS.COMMERCE_STREAM,
+    REDIS_KEYS.activeHolds(productId),
   ];
   const args = [reason, nowMs, eventId];
 
@@ -988,6 +1109,7 @@ export async function fulfillCartHold(
     REDIS_KEYS.stockLock(productId),
     REDIS_KEYS.productStock(productId),
     REDIS_KEYS.COMMERCE_STREAM,
+    REDIS_KEYS.activeHolds(productId),
   ];
 
   const args = [orderId, totalCents, txHash, chipUid, nowMs, eventId];
@@ -1056,3 +1178,17 @@ export async function seedProductStock(
 ): Promise<void> {
   await client.set(REDIS_KEYS.productStock(productId), String(totalStock));
 }
+
+/**
+ * Reconciles expired holds for a product, ensuring no units remain locked after expiration.
+ */
+export async function reconcileProductStockLocks(
+  productId: string,
+  client: RedisClientInterface = defaultClient
+): Promise<number> {
+  if (client instanceof InMemoryRedisClient) {
+    return client.reconcileExpired(productId);
+  }
+  return 0;
+}
+

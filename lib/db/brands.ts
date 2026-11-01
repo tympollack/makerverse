@@ -62,7 +62,7 @@ export async function getAllBrands(): Promise<BrandPassport[]> {
         .select("*")
         .order("created_at", { ascending: true });
 
-      if (!error && data && data.length > 0) {
+      if (!error && data) {
         return data.map((b: any) => ({
           id: b.id,
           handle: b.slug,
@@ -79,6 +79,10 @@ export async function getAllBrands(): Promise<BrandPassport[]> {
           studioLocation: b.studio_location || "Portland, Oregon · USA",
           tags: b.tags || [],
         }));
+      }
+
+      if (error) {
+        console.warn("[getAllBrands] Database query error, falling back:", error.message);
       }
     } catch (err) {
       console.warn("[getAllBrands] Falling back to real local dataset:", err);

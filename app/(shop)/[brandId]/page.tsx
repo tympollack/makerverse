@@ -53,6 +53,7 @@ import {
   type ShoppablePost,
   type ShoppablePin,
   type ChipTier,
+  type BrandPassport,
 } from "@/lib/mock/shopData";
 import { cn, formatCents, relativeTime } from "@/lib/utils";
 
@@ -368,7 +369,7 @@ function ProductCard({
 }: {
   product: Product;
   onInspect: (product: Product) => void;
-  onDemandSignal?: (productId: string, newCount: number) => void;
+  onDemandSignal?: (productId: string, newCount: number, active: boolean) => void;
 }) {
   const stockPct = (product.stock / product.maxStock) * 100;
   const isOutOfStock = product.stock === 0;
@@ -489,7 +490,7 @@ function ProductCard({
           <DemandSignalButton
             initialCount={product.demandSignals}
             productId={product.id}
-            onSignalChange={(count) => onDemandSignal?.(product.id, count)}
+            onSignalChange={(count, active) => onDemandSignal?.(product.id, count, active)}
           />
 
           <div className="ml-auto">
@@ -846,32 +847,68 @@ export default function BrandShopPage({
   const resolvedParams = params instanceof Promise ? use(params) : params;
   const brandHandle = (resolvedParams?.brandId as string) || "forge-collective";
 
-  const currentBrand = useMemo(() => {
+  const defaultBrand = useMemo(() => {
     return getBrandByHandle(brandHandle) || BRAND_PASSPORT;
   }, [brandHandle]);
 
-  const brandProducts = useMemo(() => {
-    return getProductsByBrandHandle(currentBrand.handle);
-  }, [currentBrand.handle]);
+  const defaultProducts = useMemo(() => {
+    return getProductsByBrandHandle(defaultBrand.handle);
+  }, [defaultBrand.handle]);
 
-  const brandPosts = useMemo(() => {
-    return getPostsByBrandHandle(currentBrand.handle);
-  }, [currentBrand.handle]);
+  const defaultPosts = useMemo(() => {
+    return getPostsByBrandHandle(defaultBrand.handle);
+  }, [defaultBrand.handle]);
+
+  const [currentBrand, setCurrentBrand] = useState<BrandPassport>(defaultBrand);
+  const [productsState, setProductsState] = useState<Product[]>(defaultProducts);
+  const [brandPosts, setBrandPosts] = useState<ShoppablePost[]>(defaultPosts);
 
   // Local interactive state
-  const [followerCount, setFollowerCount] = useState(currentBrand.followerCount);
+  const [followerCount, setFollowerCount] = useState(defaultBrand.followerCount);
   const [isFollowingBrand, setIsFollowingBrand] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedTier, setSelectedTier] = useState<string>("ALL");
   const [inStockOnly, setInStockOnly] = useState(false);
-  const [productsState, setProductsState] = useState<Product[]>(brandProducts);
 
-  // Sync state when brand changes
-  const [prevBrandHandle, setPrevBrandHandle] = useState(currentBrand.handle);
-  if (prevBrandHandle !== currentBrand.handle) {
-    setPrevBrandHandle(currentBrand.handle);
-    setProductsState(brandProducts);
-    setFollowerCount(currentBrand.followerCount);
+  // Fetch live catalog from database-backed API
+  useEffect(() => {
+    let active = true;
+    async function loadCatalog() {
+      try {
+        const res = await fetch(`/api/brands/${encodeURIComponent(brandHandle)}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (active) {
+            if (data.brand) {
+              setCurrentBrand(data.brand);
+              setFollowerCount(data.brand.followerCount);
+            }
+            if (Array.isArray(data.products)) {
+              setProductsState(data.products);
+            }
+            if (Array.isArray(data.posts)) {
+              setBrandPosts(data.posts);
+            }
+          }
+        }
+      } catch (err) {
+        console.warn("[BrandShopPage] Live database catalog fetch fallback:", err);
+      }
+    }
+    loadCatalog();
+    return () => {
+      active = false;
+    };
+  }, [brandHandle]);
+
+  // Sync state when brand parameter changes
+  const [prevBrandHandle, setPrevBrandHandle] = useState(brandHandle);
+  if (prevBrandHandle !== brandHandle) {
+    setPrevBrandHandle(brandHandle);
+    setCurrentBrand(defaultBrand);
+    setProductsState(defaultProducts);
+    setBrandPosts(defaultPosts);
+    setFollowerCount(defaultBrand.followerCount);
     setIsFollowingBrand(false);
   }
 
@@ -890,7 +927,7 @@ export default function BrandShopPage({
     }
   };
 
-  const handleDemandSignal = async (productId: string, newCount: number) => {
+  const handleDemandSignal = async (productId: string, newCount: number, active: boolean) => {
     setProductsState((prev) =>
       prev.map((p) => (p.id === productId ? { ...p, demandSignals: newCount } : p))
     );
@@ -898,7 +935,7 @@ export default function BrandShopPage({
       await fetch("/api/products/signal", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ productId, count: newCount }),
+        body: JSON.stringify({ productId, count: newCount, active }),
       });
     } catch (e) {
       console.warn("Demand signal API fallback:", e);

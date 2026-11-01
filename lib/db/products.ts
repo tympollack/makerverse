@@ -50,7 +50,7 @@ export async function getProducts(brandHandle?: string): Promise<Product[]> {
 
       const { data, error } = await query;
 
-      if (!error && data && data.length > 0) {
+      if (!error && data) {
         return data.map((p: any) => {
           const rawSpec = p.hardware_spec || {};
           const spec = typeof rawSpec === "object" ? rawSpec : {};
@@ -83,6 +83,10 @@ export async function getProducts(brandHandle?: string): Promise<Product[]> {
             makerNotes: p.maker_notes || "",
           };
         });
+      }
+
+      if (error) {
+        console.warn("[getProducts] Database query error, falling back to real local dataset:", error.message);
       }
     } catch (err) {
       console.warn("[getProducts] Falling back to real local dataset:", err);

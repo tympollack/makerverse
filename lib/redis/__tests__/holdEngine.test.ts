@@ -1,5 +1,5 @@
 // lib/redis/__tests__/holdEngine.test.ts
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
 import {
   InMemoryRedisClient,
   createCartHold,
@@ -145,6 +145,52 @@ describe("Makerverse Redis Reservation & Cart Hold Engine", () => {
       // Total lock must remain exactly 1
       const finalLocked = await redis.get(REDIS_KEYS.stockLock("prod_limited_drop"));
       expect(Number(finalLocked)).toBe(1);
+    });
+
+    it("expired holds do not permanently lock stock and are reclaimed on subsequent reservation", async () => {
+      await seedProductStock("prod_expire_test", 1, redis);
+
+      const hold1 = await createCartHold(
+        {
+          productId: "prod_expire_test",
+          userId: "@shopper_1",
+          qty: 1,
+          ttlSeconds: 1,
+        },
+        redis
+      );
+      expect(hold1.success).toBe(true);
+
+      // Immediately, lock is 1, so another hold fails
+      const immediateAttempt = await createCartHold(
+        {
+          productId: "prod_expire_test",
+          userId: "@shopper_2",
+          qty: 1,
+          ttlSeconds: 600,
+        },
+        redis
+      );
+      expect(immediateAttempt.success).toBe(false);
+
+      // Advance time beyond hold1's expiration
+      const nowSpy = vi.spyOn(Date, "now").mockReturnValue(Date.now() + 5000);
+
+      // Shopper 2 attempts reservation: the engine reclaims expired hold1 and succeeds
+      const recoveredAttempt = await createCartHold(
+        {
+          productId: "prod_expire_test",
+          userId: "@shopper_2",
+          qty: 1,
+          ttlSeconds: 600,
+        },
+        redis
+      );
+
+      expect(recoveredAttempt.success).toBe(true);
+      expect(recoveredAttempt.hold?.userId).toBe("@shopper_2");
+
+      nowSpy.mockRestore();
     });
 
     it("handles Redis client exceptions gracefully", async () => {

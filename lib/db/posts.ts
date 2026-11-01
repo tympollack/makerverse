@@ -38,7 +38,7 @@ export async function getShoppablePosts(brandHandle?: string): Promise<Shoppable
 
       const { data, error } = await query;
 
-      if (!error && data && data.length > 0) {
+      if (!error && data) {
         return data.map((post: any) => ({
           id: post.id,
           brandId: post.brand_id,
@@ -54,6 +54,10 @@ export async function getShoppablePosts(brandHandle?: string): Promise<Shoppable
             label: pin.label || "Craft Item",
           })),
         }));
+      }
+
+      if (error) {
+        console.warn("[getShoppablePosts] Database query error, falling back:", error.message);
       }
     } catch (err) {
       console.warn("[getShoppablePosts] Falling back to real local dataset:", err);
