@@ -41,6 +41,7 @@ import { MonoValue, PriceTag, ChipUID } from "@/components/ui/MonoValue";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { VersionReleaseBadge } from "@/components/admin/VersionReleaseBadge";
 import { HardwareInspectionModal } from "@/components/shop/HardwareInspectionModal";
+import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import {
   BRAND_PASSPORT,
   ALL_BRANDS,
@@ -53,6 +54,7 @@ import {
   type ShoppablePost,
   type ShoppablePin,
   type ChipTier,
+  type BrandPassport,
 } from "@/lib/mock/shopData";
 import { cn, formatCents, relativeTime } from "@/lib/utils";
 
@@ -368,7 +370,7 @@ function ProductCard({
 }: {
   product: Product;
   onInspect: (product: Product) => void;
-  onDemandSignal?: (productId: string, newCount: number) => void;
+  onDemandSignal?: (productId: string, newCount: number, active: boolean) => void;
 }) {
   const stockPct = (product.stock / product.maxStock) * 100;
   const isOutOfStock = product.stock === 0;
@@ -489,7 +491,7 @@ function ProductCard({
           <DemandSignalButton
             initialCount={product.demandSignals}
             productId={product.id}
-            onSignalChange={(count) => onDemandSignal?.(product.id, count)}
+            onSignalChange={(count, active) => onDemandSignal?.(product.id, count, active)}
           />
 
           <div className="ml-auto">
@@ -601,10 +603,12 @@ function ShoppablePinMarker({
 
 function SpatialModal({
   post,
+  products = PRODUCTS,
   onClose,
   onSelectProduct,
 }: {
   post: ShoppablePost;
+  products?: Product[];
   onClose: () => void;
   onSelectProduct: (product: Product) => void;
 }) {
@@ -671,7 +675,7 @@ function SpatialModal({
 
             {/* Pulsing Shoppable Pins */}
             {post.pins.map((pin) => {
-              const product = PRODUCTS.find((p) => p.id === pin.productId);
+              const product = products.find((p) => p.id === pin.productId) || PRODUCTS.find((p) => p.id === pin.productId);
               return (
                 <ShoppablePinMarker
                   key={pin.id}
@@ -701,7 +705,7 @@ function SpatialModal({
 
             <div className="space-y-3 flex-1">
               {post.pins.map((pin) => {
-                const product = PRODUCTS.find((p) => p.id === pin.productId);
+                const product = products.find((p) => p.id === pin.productId) || PRODUCTS.find((p) => p.id === pin.productId);
                 if (!product) return null;
                 const isHovered = hoveredPinId === pin.id;
 
@@ -846,32 +850,68 @@ export default function BrandShopPage({
   const resolvedParams = params instanceof Promise ? use(params) : params;
   const brandHandle = (resolvedParams?.brandId as string) || "forge-collective";
 
-  const currentBrand = useMemo(() => {
+  const defaultBrand = useMemo(() => {
     return getBrandByHandle(brandHandle) || BRAND_PASSPORT;
   }, [brandHandle]);
 
-  const brandProducts = useMemo(() => {
-    return getProductsByBrandHandle(currentBrand.handle);
-  }, [currentBrand.handle]);
+  const defaultProducts = useMemo(() => {
+    return getProductsByBrandHandle(defaultBrand.handle);
+  }, [defaultBrand.handle]);
 
-  const brandPosts = useMemo(() => {
-    return getPostsByBrandHandle(currentBrand.handle);
-  }, [currentBrand.handle]);
+  const defaultPosts = useMemo(() => {
+    return getPostsByBrandHandle(defaultBrand.handle);
+  }, [defaultBrand.handle]);
+
+  const [currentBrand, setCurrentBrand] = useState<BrandPassport>(defaultBrand);
+  const [productsState, setProductsState] = useState<Product[]>(defaultProducts);
+  const [brandPosts, setBrandPosts] = useState<ShoppablePost[]>(defaultPosts);
 
   // Local interactive state
-  const [followerCount, setFollowerCount] = useState(currentBrand.followerCount);
+  const [followerCount, setFollowerCount] = useState(defaultBrand.followerCount);
   const [isFollowingBrand, setIsFollowingBrand] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedTier, setSelectedTier] = useState<string>("ALL");
   const [inStockOnly, setInStockOnly] = useState(false);
-  const [productsState, setProductsState] = useState<Product[]>(brandProducts);
 
-  // Sync state when brand changes
-  const [prevBrandHandle, setPrevBrandHandle] = useState(currentBrand.handle);
-  if (prevBrandHandle !== currentBrand.handle) {
-    setPrevBrandHandle(currentBrand.handle);
-    setProductsState(brandProducts);
-    setFollowerCount(currentBrand.followerCount);
+  // Fetch live catalog from database-backed API
+  useEffect(() => {
+    let active = true;
+    async function loadCatalog() {
+      try {
+        const res = await fetch(`/api/brands/${encodeURIComponent(brandHandle)}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (active) {
+            if (data.brand) {
+              setCurrentBrand(data.brand);
+              setFollowerCount(data.brand.followerCount);
+            }
+            if (Array.isArray(data.products)) {
+              setProductsState(data.products);
+            }
+            if (Array.isArray(data.posts)) {
+              setBrandPosts(data.posts);
+            }
+          }
+        }
+      } catch (err) {
+        console.warn("[BrandShopPage] Live database catalog fetch fallback:", err);
+      }
+    }
+    loadCatalog();
+    return () => {
+      active = false;
+    };
+  }, [brandHandle]);
+
+  // Sync state when brand parameter changes
+  const [prevBrandHandle, setPrevBrandHandle] = useState(brandHandle);
+  if (prevBrandHandle !== brandHandle) {
+    setPrevBrandHandle(brandHandle);
+    setCurrentBrand(defaultBrand);
+    setProductsState(defaultProducts);
+    setBrandPosts(defaultPosts);
+    setFollowerCount(defaultBrand.followerCount);
     setIsFollowingBrand(false);
   }
 
@@ -890,18 +930,53 @@ export default function BrandShopPage({
     }
   };
 
-  const handleDemandSignal = async (productId: string, newCount: number) => {
+  const handleDemandSignal = async (productId: string, newCount: number, active: boolean) => {
+    const prevProduct = productsState.find((p) => p.id === productId);
+    const prevCount = prevProduct?.demandSignals ?? 0;
+
+    // Optimistically update state
     setProductsState((prev) =>
       prev.map((p) => (p.id === productId ? { ...p, demandSignals: newCount } : p))
     );
+
     try {
-      await fetch("/api/products/signal", {
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      const supabase = getSupabaseBrowserClient();
+      if (supabase) {
+        let { data: { session } } = await supabase.auth.getSession();
+        if (!session?.access_token) {
+          const { data: anonData } = await supabase.auth.signInAnonymously().catch(() => ({ data: { session: null } }));
+          session = anonData?.session ?? null;
+        }
+        if (session?.access_token) {
+          headers["Authorization"] = `Bearer ${session.access_token}`;
+        }
+      }
+
+      const res = await fetch("/api/products/signal", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ productId, count: newCount }),
+        headers,
+        body: JSON.stringify({ productId, count: newCount, active }),
       });
+
+      if (!res.ok) {
+        // Revert optimistic count on server failure (BUG_0005)
+        setProductsState((prev) =>
+          prev.map((p) => (p.id === productId ? { ...p, demandSignals: prevCount } : p))
+        );
+      } else {
+        const data = await res.json();
+        if (typeof data.demandSignals === "number") {
+          setProductsState((prev) =>
+            prev.map((p) => (p.id === productId ? { ...p, demandSignals: data.demandSignals } : p))
+          );
+        }
+      }
     } catch (e) {
       console.warn("Demand signal API fallback:", e);
+      setProductsState((prev) =>
+        prev.map((p) => (p.id === productId ? { ...p, demandSignals: prevCount } : p))
+      );
     }
   };
 
@@ -1216,6 +1291,7 @@ export default function BrandShopPage({
         {activeSpatialPost && (
           <SpatialModal
             post={activeSpatialPost}
+            products={productsState}
             onClose={() => setActiveSpatialPost(null)}
             onSelectProduct={(product) => {
               setActiveSpatialPost(null);

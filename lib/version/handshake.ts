@@ -90,15 +90,18 @@ export function validateClientVersion(
     return d.equals(clientVer);
   });
 
-  // 1. Force Update Required: Client is strictly less than minSupportedVersion OR major mismatch with minSupported
-  if (clientVer.lessThan(minVer) || clientVer.major < minVer.major) {
+  // 1. Force Update Required: Client is strictly less than minSupportedVersion OR major mismatch
+  if (clientVer.lessThan(minVer) || clientVer.major < minVer.major || clientVer.major > gatewayVer.major) {
+    const isForwardMismatch = clientVer.major > gatewayVer.major;
     return {
       status: "force_update_required",
       compatible: false,
       actionRequired: true,
       message:
         gatewayConfig.message ||
-        `Client version ${clientVer.toString()} is below the minimum supported version (${minVer.toString()}). A mandatory update is required to continue.`,
+        (isForwardMismatch
+          ? `Client major version (${clientVer.major}) is incompatible with gateway major version (${gatewayVer.major}).`
+          : `Client version ${clientVer.toString()} is below the minimum supported version (${minVer.toString()}). A mandatory update is required to continue.`),
       clientVersion: clientVer,
       gatewayVersion: gatewayVer,
       minSupportedVersion: minVer,
