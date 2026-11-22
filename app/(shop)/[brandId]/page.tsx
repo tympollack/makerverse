@@ -5,33 +5,7 @@ import React, { useState, useMemo, useEffect, use } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  BadgeCheck,
-  ExternalLink,
-  ShoppingBag,
-  MapPin,
-  Clock,
-  ChevronRight,
-  X,
-  Layers,
-  Sparkles,
-  Search,
-  SlidersHorizontal,
-  Copy,
-  Check,
-  Cpu,
-  ShieldCheck,
-  QrCode,
-  Radio,
-  Lock,
-  Zap,
-  ArrowRight,
-  Share2,
-  Info,
-  CheckCircle2,
-  Maximize2,
-  CornerDownRight,
-  Tag,
-  Key,
+  BadgeCheck, ExternalLink, ShoppingBag, MapPin, Clock, ChevronRight, X, Layers, Sparkles, Search, SlidersHorizontal, Copy, Check, Cpu, ShieldCheck, QrCode, Radio, Lock, Zap, ArrowRight, Share2, Info, CheckCircle2, Maximize2, CornerDownRight, Tag, Key,
 } from "lucide-react";
 import { FrostedCard } from "@/components/ui/FrostedCard";
 import { ProvenanceBadge, TIER_CONFIG } from "@/components/ui/ProvenanceBadge";
@@ -41,14 +15,18 @@ import { MonoValue, PriceTag, ChipUID } from "@/components/ui/MonoValue";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { VersionReleaseBadge } from "@/components/admin/VersionReleaseBadge";
 import { HardwareInspectionModal } from "@/components/shop/HardwareInspectionModal";
+import { UpcomingDropsRail } from "@/components/shop/UpcomingDropsRail";
+import { DropShareBar } from "@/components/shop/DropShareBar";
 import {
   BRAND_PASSPORT,
   ALL_BRANDS,
   PRODUCTS,
   SHOPPABLE_POSTS,
+  IS_MOCK_ENABLED,
   getBrandByHandle,
   getProductsByBrandHandle,
   getPostsByBrandHandle,
+  type BrandPassport,
   type Product,
   type ShoppablePost,
   type ShoppablePin,
@@ -844,18 +822,27 @@ export default function BrandShopPage({
 }) {
   // Resolve params cleanly whether promise or plain object
   const resolvedParams = params instanceof Promise ? use(params) : params;
-  const brandHandle = (resolvedParams?.brandId as string) || "forge-collective";
+  const brandHandle = (resolvedParams?.brandId as string) || "";
 
-  const currentBrand = useMemo(() => {
-    return getBrandByHandle(brandHandle) || BRAND_PASSPORT;
+  const currentBrand = useMemo<BrandPassport>(() => {
+    const found = getBrandByHandle(brandHandle);
+    if (found) return found;
+    if (IS_MOCK_ENABLED) return BRAND_PASSPORT;
+    return {
+      ...BRAND_PASSPORT,
+      handle: brandHandle,
+      name: brandHandle ? `@${brandHandle}` : "Unclaimed Maker Shop",
+      bio: "This storefront has no published physical batches yet.",
+      studioLocation: "Makerverse Registry",
+    };
   }, [brandHandle]);
 
   const brandProducts = useMemo(() => {
-    return getProductsByBrandHandle(currentBrand.handle);
+    return IS_MOCK_ENABLED ? getProductsByBrandHandle(currentBrand.handle) : [];
   }, [currentBrand.handle]);
 
   const brandPosts = useMemo(() => {
-    return getPostsByBrandHandle(currentBrand.handle);
+    return IS_MOCK_ENABLED ? getPostsByBrandHandle(currentBrand.handle) : [];
   }, [currentBrand.handle]);
 
   // Local interactive state
@@ -994,6 +981,10 @@ export default function BrandShopPage({
             onOpenLedgerModal={() => setShowLedgerModal(true)}
           />
         </section>
+
+        {/* Viral Rally Share Bar & Upcoming Scheduled Drops Rail */}
+        <DropShareBar brandName={currentBrand.name} brandHandle={currentBrand.handle} mintedCount={productsState.reduce((acc, p) => acc + Math.max(0, p.maxStock - p.stock), 0)} />
+        <UpcomingDropsRail brandHandle={currentBrand.handle} />
 
         {/* Product Catalog Section */}
         <section className="space-y-6">
