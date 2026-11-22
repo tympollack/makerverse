@@ -3,6 +3,11 @@ import React from "react";
 import { cleanup } from "@testing-library/react";
 import { afterEach, vi } from "vitest";
 
+// Enable mock datasets during test runs unless explicitly disabled
+if (process.env.NEXT_PUBLIC_USE_MOCKS === undefined) {
+  process.env.NEXT_PUBLIC_USE_MOCKS = "true";
+}
+
 // Automatically cleanup after each test
 afterEach(() => {
   cleanup();

@@ -4,31 +4,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  Sparkles,
-  Users,
-  Trophy,
-  Cpu,
-  Wifi,
-  Radio,
-  Sliders,
-  CheckCircle2,
-  XCircle,
-  Clock,
-  Search,
-  RefreshCw,
-  Gift,
-  Copy,
-  Check,
-  QrCode,
-  Zap,
-  ShieldCheck,
-  Plus,
-  Play,
-  Pause,
-  MapPin,
-  Flame,
-  Award,
-  Send,
+  Sparkles, Users, Trophy, Cpu, Wifi, Radio, Sliders, CheckCircle2, XCircle, Clock, Search, RefreshCw, Gift, Copy, Check, QrCode, Zap, ShieldCheck, Plus, Play, Pause, MapPin, Flame, Award, Send,
 } from "lucide-react";
 import { FrostedCard } from "@/components/ui/FrostedCard";
 import { MonoValue, ChipUID } from "@/components/ui/MonoValue";
@@ -98,10 +74,14 @@ const SIMULATED_ATTENDEES = [
   { handle: "@artisan_claire", name: "Claire Dupont", initials: "CD", tier: "GUEST" as AttendeeTier, comments: ["First time at this booth. The craft quality is amazing.", "Signing the guestbook!"] },
 ];
 
+const DEFAULT_STATION: BoothInstallation = {
+  id: "inst_default", name: "Unconfigured Booth Station", type: "Interactive Shoppable Booth Engine", chipCount: 0, status: "OFFLINE", lastPing: "never", location: "Pending Deployment", triggerCount: 0, hardwareUid: "NXP-UNASSIGNED", stationIp: "0.0.0.0", readerModel: "NXP PN532 / NTAG424 Reader",
+};
+
 export function BoothEngine() {
   // Selected Installation & Active Tab
   const [installations] = useState<BoothInstallation[]>(MOCK_INSTALLATIONS);
-  const [selectedStationId, setSelectedStationId] = useState<string>(MOCK_INSTALLATIONS[0].id);
+  const [selectedStationId, setSelectedStationId] = useState<string>(MOCK_INSTALLATIONS[0]?.id ?? DEFAULT_STATION.id);
   const [mode, setMode] = useState<BoothEngineMode>("GUESTBOOK");
 
   // Guestbook Mode State
@@ -120,7 +100,7 @@ export function BoothEngine() {
   const [lastRaffleResult, setLastRaffleResult] = useState<RaffleAttempt | null>(null);
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
 
-  const activeStation = installations.find((i) => i.id === selectedStationId) || installations[0];
+  const activeStation = installations.find((i) => i.id === selectedStationId) || installations[0] || DEFAULT_STATION;
 
   // ─── Continuous Live Feed Simulation ──────────────────────────────────────────
 
