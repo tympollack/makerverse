@@ -7,6 +7,7 @@ import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Package,
+  CalendarDays,
   ShoppingCart,
   Cpu,
   Zap,
@@ -32,6 +33,12 @@ const NAV_ITEMS = [
     href: "/vendor/inventory",
     label: "Inventory & NFC",
     icon: Package,
+    exact: false,
+  },
+  {
+    href: "/vendor/schedule",
+    label: "Schedule",
+    icon: CalendarDays,
     exact: false,
   },
   {
