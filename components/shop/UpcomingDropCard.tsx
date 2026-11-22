@@ -2,10 +2,10 @@
 "use client";
 
 import { useState } from "react";
-import { Lock, Sparkles, Clock, CheckCircle2, Mail, ArrowRight } from "lucide-react";
+import Link from "next/link";
+import { Lock, Sparkles, Clock, CheckCircle2, Mail, ArrowRight, BellRing, Check } from "lucide-react";
 import { FrostedCard } from "@/components/ui/FrostedCard";
 import { CountdownTimer } from "@/components/ui/CountdownTimer";
-import { FollowToggle } from "@/components/ui/FollowToggle";
 import {
   isBatchCheckoutUnlocked,
   type ProductBatch,
@@ -28,11 +28,14 @@ export function UpcomingDropCard({ batch, onUnlock }: UpcomingDropCardProps) {
   const [notifyCount, setNotifyCount] = useState(batch.notifyCount ?? 0);
   const [submitting, setSubmitting] = useState(false);
   const [statusNote, setStatusNote] = useState<string | null>(null);
+  const [errorNote, setErrorNote] = useState<string | null>(null);
 
   const isV2 = batch.versionTag.toLowerCase().startsWith("v2");
   const versionLabel = isV2
     ? `${batch.versionTag.toUpperCase()} ARTIST EDITION`
     : `${batch.versionTag.toUpperCase()} PURE-TYPE`;
+
+  const liveDropHref = `/${batch.brandHandle}?batch=${encodeURIComponent(batch.sku)}#catalog`;
 
   const handleCountdownExpire = () => {
     setIsUnlocked(true);
@@ -41,47 +44,48 @@ export function UpcomingDropCard({ batch, onUnlock }: UpcomingDropCardProps) {
 
   const submitNotifySubscription = async (email: string) => {
     setSubmitting(true);
+    setErrorNote(null);
+    setStatusNote(null);
     try {
       const res = await fetch("/api/drops/notify", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ batchId: batch.id, email }),
       });
-      if (res.ok) {
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.subscribed) {
         setNotified(true);
         setNotifyCount((c) => c + 1);
         setShowEmailPrompt(false);
-        setStatusNote(`Launch alert armed for ${email}.`);
+        setStatusNote(
+          data.persistedToDb
+            ? `Launch alert saved for ${email}.`
+            : `Preview alert armed for ${email}.`,
+        );
       } else {
-        setStatusNote("Enter a valid email to receive launch alerts.");
+        setErrorNote(data.error || "Unable to register launch alert. Please retry.");
       }
     } catch {
-      setNotified(true);
-      setNotifyCount((c) => c + 1);
-      setShowEmailPrompt(false);
-      setStatusNote(`Launch alert armed for ${email}.`);
+      setErrorNote("Network error saving launch alert. Please retry.");
     } finally {
       setSubmitting(false);
     }
   };
 
-  const handleNotifyToggle = (nextFollowed: boolean) => {
-    if (!nextFollowed) {
-      setNotified(false);
-      setStatusNote(null);
-      return;
-    }
+  const handleNotifyClick = () => {
+    if (notified) return;
     if (emailInput.trim() && emailInput.includes("@")) {
       void submitNotifySubscription(emailInput.trim());
     } else {
-      setShowEmailPrompt(true);
+      setErrorNote(null);
+      setShowEmailPrompt((prev) => !prev);
     }
   };
 
   const handleEmailSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!emailInput.trim() || !emailInput.includes("@")) {
-      setStatusNote("Please enter a valid email address.");
+      setErrorNote("Please enter a valid email address.");
       return;
     }
     void submitNotifySubscription(emailInput.trim());
@@ -153,13 +157,13 @@ export function UpcomingDropCard({ batch, onUnlock }: UpcomingDropCardProps) {
               <span>RELEASE WINDOW OPEN</span>
               <span>CHECKOUT UNLOCKED</span>
             </div>
-            <a
-              href="#catalog"
+            <Link
+              href={liveDropHref}
               className="w-full py-2.5 px-4 rounded-xl bg-[#CC5500] hover:bg-[#e0621a] text-white font-mono text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 transition-colors shadow-[0_0_20px_rgba(204,85,0,0.35)]"
             >
               <span>Enter Live Drop Checkout</span>
               <ArrowRight className="w-3.5 h-3.5" />
-            </a>
+            </Link>
           </div>
         ) : (
           <div className="space-y-2.5">
@@ -178,16 +182,28 @@ export function UpcomingDropCard({ batch, onUnlock }: UpcomingDropCardProps) {
             </div>
 
             <div className="flex items-center justify-between gap-2">
-              <FollowToggle
-                target="product"
-                initialFollowed={notified}
-                label="Notify Me at Drop"
-                followingLabel="Drop Alert Armed"
-                onToggle={handleNotifyToggle}
-                size="sm"
-                variant="primary"
-                className="flex-1"
-              />
+              <button
+                type="button"
+                onClick={handleNotifyClick}
+                disabled={notified || submitting}
+                className={
+                  notified
+                    ? "flex-1 h-8 px-3.5 rounded-xl border border-[#CC5500]/50 bg-[#CC5500]/15 text-orange-200 font-medium text-xs inline-flex items-center justify-center gap-1.5"
+                    : "flex-1 h-8 px-3.5 rounded-xl bg-[#CC5500] hover:bg-[#E0621A] text-[#F9F9F9] border border-[#CC5500]/50 shadow-[0_0_20px_rgba(204,85,0,0.3)] font-medium text-xs inline-flex items-center justify-center gap-1.5 cursor-pointer transition-all"
+                }
+              >
+                {notified ? (
+                  <>
+                    <Check className="w-3.5 h-3.5 text-orange-400" />
+                    <span>Drop Alert Armed</span>
+                  </>
+                ) : (
+                  <>
+                    <BellRing className="w-3.5 h-3.5" />
+                    <span>Notify Me at Drop</span>
+                  </>
+                )}
+              </button>
               {notifyCount > 0 && (
                 <span className="font-mono text-[10px] text-white/45 whitespace-nowrap">
                   {notifyCount} queued
@@ -221,6 +237,9 @@ export function UpcomingDropCard({ batch, onUnlock }: UpcomingDropCardProps) {
 
             {statusNote && (
               <p className="font-mono text-[10px] text-emerald-300">{statusNote}</p>
+            )}
+            {errorNote && (
+              <p className="font-mono text-[10px] text-red-300">{errorNote}</p>
             )}
           </div>
         )}

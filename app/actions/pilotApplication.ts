@@ -64,13 +64,13 @@ export async function submitPilotApplication(
         .maybeSingle();
 
       if (error) {
-        // Graceful fallback toast confirmation if table is pending migration or offline
-        console.warn("[submitPilotApplication] Pending migration / DB notice:", error.message);
+        console.warn("[submitPilotApplication] DB insert error:", error.message);
         return {
-          success: true,
+          success: false,
           persistedToDb: false,
-          applicationId: fallbackId,
-          message: `Application queued for Founding Cohort · Wave 1 (${artistBrandName}). Check ${email} for your studio invite link.`,
+          applicationId: "",
+          error: error.message,
+          message: "Unable to save your application right now. Please try again.",
         };
       }
 

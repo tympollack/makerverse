@@ -602,6 +602,7 @@ export interface MakerverseTables {
       batch_id: string;
       user_id: string | null;
       email: string | null;
+      verified: boolean;
       created_at: string;
     };
     Insert: {
@@ -609,6 +610,7 @@ export interface MakerverseTables {
       batch_id: string;
       user_id?: string | null;
       email?: string | null;
+      verified?: boolean;
       created_at?: string;
     };
     Update: {
@@ -616,6 +618,7 @@ export interface MakerverseTables {
       batch_id?: string;
       user_id?: string | null;
       email?: string | null;
+      verified?: boolean;
       created_at?: string;
     };
     Relationships: [];

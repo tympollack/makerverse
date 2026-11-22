@@ -137,6 +137,7 @@ export default function GetBentFlagshipDropPage() {
               onIncrementMinted={() => setTotalMinted((n) => n + 1)}
               topBidDollars={topBidDollars}
               onUpdateTopBid={(bid) => setTopBidDollars(bid)}
+              cutoffMs={BLACK_FRIDAY_CUTOFF_MS}
             />
           </div>
         </section>

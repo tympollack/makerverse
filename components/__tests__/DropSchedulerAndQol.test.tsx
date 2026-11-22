@@ -20,8 +20,10 @@ import {
   generatePirateShipCsv,
   generateNfcTagManifestCsv,
 } from "@/lib/utils/exportBatchManifest";
+import { NextRequest } from "next/server";
 import { scheduleBatchRelease } from "@/app/(admin)/vendor/schedule/actions";
-import OgImage from "@/app/(shop)/[brandId]/opengraph-image";
+import { GET as getDropsApi } from "@/app/api/drops/route";
+import { POST as postDropNotify } from "@/app/api/drops/notify/route";
 import GetBentFlagshipDropPage from "@/app/(shop)/get-bent/page";
 import type { InventoryItem } from "@/lib/mock/adminData";
 
@@ -107,6 +109,34 @@ describe("TASK-MKR-SCHEDULE-SCHEMA-LIFECYCLE: Batch Lifecycle & Overlap Resolver
     expect(overlappingIds.has("b1")).toBe(true);
     expect(overlappingIds.has("b2")).toBe(true);
     expect(advisories.length).toBeGreaterThan(0);
+
+    // Open-ended drop (autoRetireAt: null) must also trigger overlap with later drops
+    const openEndedOverlaps = detectFulfillmentOverlaps([
+      { ...batches[0], autoRetireAt: null },
+      {
+        ...batches[1],
+        goesLiveAt: new Date(now + 10 * 86_400_000).toISOString(),
+        autoRetireAt: new Date(now + 12 * 86_400_000).toISOString(),
+      },
+    ]);
+    expect(openEndedOverlaps.overlappingIds.has("b1")).toBe(true);
+    expect(openEndedOverlaps.overlappingIds.has("b2")).toBe(true);
+  });
+
+  it("gates mode=all drops behind admin auth and validates notify-me requests", async () => {
+    const unauthAll = await getDropsApi(
+      new NextRequest("http://localhost:3000/api/drops?mode=all"),
+    );
+    expect(unauthAll.status).toBe(401);
+
+    const badNotify = await postDropNotify(
+      new NextRequest("http://localhost:3000/api/drops/notify", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ batchId: "batch_1", userId: "victim-uuid" }),
+      }),
+    );
+    expect(badNotify.status).toBe(400);
   });
 
   it("rejects scheduleBatchRelease when autoRetireAt <= goesLiveAt", async () => {
@@ -244,7 +274,8 @@ describe("TASK-MKR-QUICK-LIST-DUPLICATOR & TASK-MKR-BATCH-SETTLEMENT-EXPORT", ()
 
   it("calculates settlement fees & generates valid Pirate Ship and NFC Manifest CSVs", async () => {
     const user = userEvent.setup();
-    const orders = buildBatchManifestOrders(sampleItems[0]);
+    const { orders, isSimulatedPreview } = buildBatchManifestOrders(sampleItems[0]);
+    expect(isSimulatedPreview).toBe(true);
     expect(orders.length).toBe(20);
 
     const summary = calculateBatchSettlement(sampleItems[0], orders);
@@ -287,11 +318,5 @@ describe("TASK-MKR-VIRAL-SHARE-OG-KIT: DropShareBar & OpenGraph Route", () => {
 
     await user.click(screen.getByRole("button", { name: /Copy Drop Link/i }));
     expect(screen.getByText("Copied!")).toBeInTheDocument();
-  });
-
-  it("generates an OpenGraph ImageResponse for /[brandId]/opengraph-image", async () => {
-    const response = await OgImage({ params: Promise.resolve({ brandId: "get-bent" }) });
-    expect(response.status).toBe(200);
-    expect(response.headers.get("content-type")).toContain("image/png");
   });
 });

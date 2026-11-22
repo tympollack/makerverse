@@ -2,13 +2,15 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { headers } from "next/headers";
 import { getSupabaseServerClient, getSupabaseServiceRoleClient } from "@/lib/supabase/server";
 import {
   resolveBatchLifecycleStatus,
   type ProductBatch,
   type BatchMetadata,
 } from "@/lib/drops/lifecycle";
-import type { ChipTier } from "@/lib/mock/shopData";
+import { IS_MOCK_ENABLED } from "@/lib/mock/adminData";
+import { ALL_BRANDS, type ChipTier } from "@/lib/mock/shopData";
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -29,7 +31,7 @@ export interface ScheduleBatchInput {
   maxCap?: number | null;
   vanityAuctionEnabled?: boolean;
   metadata?: BatchMetadata;
-  actorUserId?: string;
+  authToken?: string;
 }
 
 export interface BatchActionResult {
@@ -39,33 +41,76 @@ export interface BatchActionResult {
   error?: string;
 }
 
-async function verifyBrandOwnership(
+async function resolveCallerAuth(
   supabase: NonNullable<ReturnType<typeof getSupabaseServiceRoleClient>>,
-  brandId: string,
-  actorUserId?: string,
-): Promise<{ ok: boolean; error?: string }> {
-  if (!UUID_REGEX.test(brandId)) {
-    return { ok: true };
+  explicitToken?: string,
+): Promise<{ authorized: boolean; userId?: string; isAdmin?: boolean; error?: string }> {
+  let token = explicitToken?.trim() || "";
+  if (!token) {
+    try {
+      const hdrs = await headers();
+      const authHeader = hdrs.get("authorization");
+      if (authHeader?.startsWith("Bearer ")) {
+        token = authHeader.substring(7).trim();
+      }
+    } catch {
+      // Called outside Next.js request header scope (e.g. unit test)
+    }
   }
 
-  const { data: brand, error } = await (supabase.from("brands" as any) as any)
-    .select("id, owner_id")
-    .eq("id", brandId)
-    .maybeSingle();
+  if (!token) {
+    return { authorized: false, error: "UNAUTHORIZED_MISSING_CREDENTIALS" };
+  }
 
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const adminSecret = process.env.ADMIN_API_KEY;
+  if ((serviceKey && token === serviceKey) || (adminSecret && token === adminSecret)) {
+    return { authorized: true, isAdmin: true };
+  }
+
+  const { data: userRes, error } = await supabase.auth.getUser(token);
+  if (error || !userRes?.user) {
+    return { authorized: false, error: "UNAUTHORIZED_INVALID_TOKEN" };
+  }
+
+  const role = userRes.user.app_metadata?.role;
+  return {
+    authorized: true,
+    userId: userRes.user.id,
+    isAdmin: role === "admin" || role === "service_role",
+  };
+}
+
+async function resolveAndVerifyBrand(
+  supabase: NonNullable<ReturnType<typeof getSupabaseServiceRoleClient>>,
+  brandIdArg: string | undefined,
+  brandHandleArg: string | undefined,
+  caller: { userId?: string; isAdmin?: boolean },
+): Promise<{ ok: boolean; brandId?: string; brandHandle?: string; error?: string }> {
+  const normalizedHandle = (brandHandleArg || "").toLowerCase().replace(/^@/, "");
+  let query = (supabase.from("brands" as any) as any).select("id, slug, owner_id");
+
+  if (brandIdArg && UUID_REGEX.test(brandIdArg)) {
+    query = query.eq("id", brandIdArg);
+  } else if (normalizedHandle) {
+    query = query.eq("slug", normalizedHandle);
+  } else {
+    return { ok: false, error: "MISSING_BRAND_IDENTIFIER" };
+  }
+
+  const { data: brand, error } = await query.maybeSingle();
   if (error) {
     return { ok: false, error: error.message };
   }
-
   if (!brand) {
     return { ok: false, error: "BRAND_NOT_FOUND" };
   }
 
-  if (brand.owner_id && actorUserId && brand.owner_id !== actorUserId) {
+  if (!caller.isAdmin && brand.owner_id !== caller.userId) {
     return { ok: false, error: "FORBIDDEN_BRAND_OWNERSHIP" };
   }
 
-  return { ok: true };
+  return { ok: true, brandId: brand.id, brandHandle: brand.slug };
 }
 
 function validateScheduleWindow(goesLiveAt: string, autoRetireAt?: string | null): string | null {
@@ -97,8 +142,9 @@ export async function scheduleBatchRelease(
     return { success: false, persistedToDb: false, error: windowError };
   }
 
-  const brandId = input.brandId || "b0000001-0000-0000-0000-000000000001";
   const brandHandle = (input.brandHandle || "get-bent").toLowerCase().replace(/^@/, "");
+  const matchedMockBrand = ALL_BRANDS.find((b) => b.handle.toLowerCase() === brandHandle);
+  const fallbackBrandId = input.brandId || matchedMockBrand?.id || `brand_${brandHandle}`;
   const isPublished = input.isPublished ?? true;
   const isPublicTeaser = input.isPublicTeaser ?? true;
   const versionTag = input.versionTag || "v1.0";
@@ -106,7 +152,7 @@ export async function scheduleBatchRelease(
 
   const candidateBatch: ProductBatch = {
     id: `batch_${Date.now().toString(36)}`,
-    brandId,
+    brandId: fallbackBrandId,
     brandHandle,
     parentBatchId: input.parentBatchId ?? null,
     title,
@@ -128,16 +174,26 @@ export async function scheduleBatchRelease(
   candidateBatch.releaseStatus = resolveBatchLifecycleStatus(candidateBatch);
 
   const supabase = getSupabaseServiceRoleClient() || getSupabaseServerClient();
-  if (supabase && UUID_REGEX.test(brandId)) {
-    const ownership = await verifyBrandOwnership(supabase as any, brandId, input.actorUserId);
-    if (!ownership.ok) {
-      return { success: false, persistedToDb: false, error: ownership.error };
+  if (supabase) {
+    const caller = await resolveCallerAuth(supabase as any, input.authToken);
+    if (!caller.authorized) {
+      return { success: false, persistedToDb: false, error: caller.error };
+    }
+
+    const brandCheck = await resolveAndVerifyBrand(
+      supabase as any,
+      input.brandId,
+      brandHandle,
+      caller,
+    );
+    if (!brandCheck.ok || !brandCheck.brandId) {
+      return { success: false, persistedToDb: false, error: brandCheck.error };
     }
 
     const dbTier = chipTier === "NTAG424_DNA" ? "NTAG424_DNA_CMAC" : chipTier;
     const { data, error } = await (supabase.from("product_batches" as any) as any)
       .insert({
-        brand_id: brandId,
+        brand_id: brandCheck.brandId,
         parent_batch_id: input.parentBatchId && UUID_REGEX.test(input.parentBatchId) ? input.parentBatchId : null,
         title: candidateBatch.title,
         sku: candidateBatch.sku,
@@ -156,18 +212,25 @@ export async function scheduleBatchRelease(
       .select("*")
       .maybeSingle();
 
-    if (error) {
-      console.warn("[scheduleBatchRelease] DB notice:", error.message);
-      return { success: true, persistedToDb: false, batch: candidateBatch };
+    if (error || !data) {
+      return {
+        success: false,
+        persistedToDb: false,
+        error: error?.message || "BATCH_INSERT_FAILED",
+      };
     }
 
-    if (data) {
-      candidateBatch.id = data.id;
-    }
+    candidateBatch.id = data.id;
+    candidateBatch.brandId = brandCheck.brandId;
+    candidateBatch.brandHandle = brandCheck.brandHandle || brandHandle;
 
     revalidatePath("/vendor/schedule");
-    revalidatePath(`/${brandHandle}`);
+    revalidatePath(`/${candidateBatch.brandHandle}`);
     return { success: true, persistedToDb: true, batch: candidateBatch };
+  }
+
+  if (!IS_MOCK_ENABLED) {
+    return { success: false, persistedToDb: false, error: "DATABASE_NOT_CONFIGURED" };
   }
 
   revalidatePath("/vendor/schedule");
@@ -179,7 +242,13 @@ export async function rescheduleBatchWindow(input: {
   goesLiveAt: string;
   autoRetireAt?: string | null;
   isPublished?: boolean;
-  actorUserId?: string;
+  title?: string;
+  sku?: string;
+  versionTag?: string;
+  isPublicTeaser?: boolean;
+  chipTier?: ChipTier;
+  basePriceCents?: number;
+  authToken?: string;
 }): Promise<BatchActionResult> {
   if (!input.batchId) {
     return { success: false, persistedToDb: false, error: "MISSING_BATCH_ID" };
@@ -195,8 +264,13 @@ export async function rescheduleBatchWindow(input: {
   const supabase = getSupabaseServiceRoleClient() || getSupabaseServerClient();
 
   if (supabase && UUID_REGEX.test(input.batchId)) {
+    const caller = await resolveCallerAuth(supabase as any, input.authToken);
+    if (!caller.authorized) {
+      return { success: false, persistedToDb: false, error: caller.error };
+    }
+
     const { data: existing, error: fetchErr } = await (supabase.from("product_batches" as any) as any)
-      .select("id, brand_id, is_published")
+      .select("id, brand_id, is_published, goes_live_at, auto_retire_at")
       .eq("id", input.batchId)
       .maybeSingle();
 
@@ -207,16 +281,32 @@ export async function rescheduleBatchWindow(input: {
       return { success: false, persistedToDb: false, error: "BATCH_NOT_FOUND" };
     }
 
-    const ownership = await verifyBrandOwnership(supabase as any, existing.brand_id, input.actorUserId);
-    if (!ownership.ok) {
-      return { success: false, persistedToDb: false, error: ownership.error };
+    const brandCheck = await resolveAndVerifyBrand(supabase as any, existing.brand_id, undefined, caller);
+    if (!brandCheck.ok) {
+      return { success: false, persistedToDb: false, error: brandCheck.error };
     }
 
+    const currentStatus = resolveBatchLifecycleStatus({
+      isPublished: Boolean(existing.is_published),
+      goesLiveAt: existing.goes_live_at,
+      autoRetireAt: existing.auto_retire_at,
+    });
+    if (currentStatus === "RETIRED") {
+      return { success: false, persistedToDb: false, error: "RETIRED_BATCH_LOCKED" };
+    }
+
+    const dbTier = input.chipTier === "NTAG424_DNA" ? "NTAG424_DNA_CMAC" : input.chipTier;
     const { error: updateErr } = await (supabase.from("product_batches" as any) as any)
       .update({
         goes_live_at: normalizedLive,
         auto_retire_at: normalizedRetire,
         ...(input.isPublished !== undefined ? { is_published: input.isPublished } : {}),
+        ...(input.title !== undefined ? { title: input.title.trim() } : {}),
+        ...(input.sku !== undefined ? { sku: input.sku.trim().toUpperCase() } : {}),
+        ...(input.versionTag !== undefined ? { version_tag: input.versionTag } : {}),
+        ...(input.isPublicTeaser !== undefined ? { is_public_teaser: input.isPublicTeaser } : {}),
+        ...(dbTier !== undefined ? { chip_tier: dbTier } : {}),
+        ...(input.basePriceCents !== undefined ? { base_price_cents: input.basePriceCents } : {}),
       })
       .eq("id", input.batchId);
 
@@ -228,13 +318,17 @@ export async function rescheduleBatchWindow(input: {
     return { success: true, persistedToDb: true };
   }
 
+  if (!IS_MOCK_ENABLED) {
+    return { success: false, persistedToDb: false, error: "DATABASE_NOT_CONFIGURED" };
+  }
+
   return { success: true, persistedToDb: false };
 }
 
 export async function togglePublicTeaser(input: {
   batchId: string;
   isPublicTeaser: boolean;
-  actorUserId?: string;
+  authToken?: string;
 }): Promise<BatchActionResult> {
   if (!input.batchId) {
     return { success: false, persistedToDb: false, error: "MISSING_BATCH_ID" };
@@ -242,6 +336,11 @@ export async function togglePublicTeaser(input: {
 
   const supabase = getSupabaseServiceRoleClient() || getSupabaseServerClient();
   if (supabase && UUID_REGEX.test(input.batchId)) {
+    const caller = await resolveCallerAuth(supabase as any, input.authToken);
+    if (!caller.authorized) {
+      return { success: false, persistedToDb: false, error: caller.error };
+    }
+
     const { data: existing, error: fetchErr } = await (supabase.from("product_batches" as any) as any)
       .select("id, brand_id")
       .eq("id", input.batchId)
@@ -254,9 +353,9 @@ export async function togglePublicTeaser(input: {
       return { success: false, persistedToDb: false, error: "BATCH_NOT_FOUND" };
     }
 
-    const ownership = await verifyBrandOwnership(supabase as any, existing.brand_id, input.actorUserId);
-    if (!ownership.ok) {
-      return { success: false, persistedToDb: false, error: ownership.error };
+    const brandCheck = await resolveAndVerifyBrand(supabase as any, existing.brand_id, undefined, caller);
+    if (!brandCheck.ok) {
+      return { success: false, persistedToDb: false, error: brandCheck.error };
     }
 
     const { error: updateErr } = await (supabase.from("product_batches" as any) as any)
@@ -269,6 +368,10 @@ export async function togglePublicTeaser(input: {
 
     revalidatePath("/vendor/schedule");
     return { success: true, persistedToDb: true };
+  }
+
+  if (!IS_MOCK_ENABLED) {
+    return { success: false, persistedToDb: false, error: "DATABASE_NOT_CONFIGURED" };
   }
 
   return { success: true, persistedToDb: false };

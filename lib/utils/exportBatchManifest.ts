@@ -1,5 +1,5 @@
 // lib/utils/exportBatchManifest.ts
-import type { InventoryItem, NfcChipEntry } from "@/lib/mock/adminData";
+import { IS_MOCK_ENABLED, type InventoryItem, type NfcChipEntry } from "@/lib/mock/adminData";
 
 export type GarmentSize = "S" | "M" | "L" | "XL" | "XXL";
 
@@ -45,19 +45,34 @@ export function formatAssignedSerial(serialNumber: number, denominator: number):
   return `#${padded}/${denominator}`;
 }
 
+/**
+ * Returns finalized order rows when provided, or synthetic preview rows ONLY
+ * when IS_MOCK_ENABLED is true in dev/test. Production never fabricates orders.
+ */
 export function buildBatchManifestOrders(
   item: InventoryItem,
   chips: NfcChipEntry[] = [],
-): BatchOrderRow[] {
+  realOrders?: BatchOrderRow[],
+): { orders: BatchOrderRow[]; isSimulatedPreview: boolean } {
+  if (Array.isArray(realOrders)) {
+    return { orders: realOrders, isSimulatedPreview: false };
+  }
+
+  if (!IS_MOCK_ENABLED) {
+    return { orders: [], isSimulatedPreview: false };
+  }
+
   const soldCount = Math.max(0, item.maxStock - item.stock);
-  if (soldCount === 0) return [];
+  if (soldCount === 0) {
+    return { orders: [], isSimulatedPreview: false };
+  }
 
   const matchedChips = chips.filter((c) => c.assignedSku === item.sku);
   const basePriceDollars = (item.priceCents ?? 2500) / 100;
   const denominator = item.maxStock > 0 ? item.maxStock : soldCount;
   const sizeCycle: GarmentSize[] = ["L", "M", "XL", "S", "XXL"];
 
-  return Array.from({ length: soldCount }, (_, idx) => {
+  const orders: BatchOrderRow[] = Array.from({ length: soldCount }, (_, idx) => {
     const serialNumber = idx + 1;
     const chip = matchedChips[idx];
     const isAuctionWinner = serialNumber === 69 || (idx === 0 && soldCount >= 3);
@@ -67,7 +82,7 @@ export function buildBatchManifestOrders(
       serialNumber,
       editionDenominator: denominator,
       size: sizeCycle[idx % sizeCycle.length],
-      recipientName: `Collector #${String(serialNumber).padStart(3, "0")}`,
+      recipientName: `Demo Collector #${String(serialNumber).padStart(3, "0")}`,
       address: `${100 + serialNumber} Craft Foundry Way`,
       city: "Portland",
       state: "OR",
@@ -77,6 +92,8 @@ export function buildBatchManifestOrders(
       paidDollars: basePriceDollars + surplus,
     };
   });
+
+  return { orders, isSimulatedPreview: true };
 }
 
 export function calculateBatchSettlement(

@@ -29,28 +29,32 @@ export function UpcomingDropsRail({
   brandHandle: string;
   initialTeasers?: ProductBatch[];
 }) {
-  const [fetchedTeasers, setFetchedTeasers] = useState<ProductBatch[] | null>(null);
-  const teasers = initialTeasers ?? fetchedTeasers ?? getInitialTeasers(brandHandle);
+  const normalized = brandHandle.toLowerCase().replace(/^@/, "");
+  const [remoteResult, setRemoteResult] = useState<{
+    brand: string;
+    teasers: ProductBatch[];
+  } | null>(null);
+
+  const activeFetched =
+    remoteResult && remoteResult.brand === normalized ? remoteResult.teasers : null;
+  const teasers = initialTeasers ?? activeFetched ?? getInitialTeasers(normalized);
 
   useEffect(() => {
     if (initialTeasers) return;
 
     let active = true;
-    const normalized = brandHandle.toLowerCase().replace(/^@/, "");
     fetch(`/api/drops?brand=${encodeURIComponent(normalized)}&mode=teasers`)
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
-        if (!active || !data?.teasers) return;
-        if (Array.isArray(data.teasers) && data.teasers.length > 0) {
-          setFetchedTeasers(data.teasers);
-        }
+        if (!active || !data || !Array.isArray(data.teasers)) return;
+        setRemoteResult({ brand: normalized, teasers: data.teasers });
       })
       .catch(() => {});
 
     return () => {
       active = false;
     };
-  }, [brandHandle, initialTeasers]);
+  }, [normalized, initialTeasers]);
 
   if (teasers.length === 0) {
     return null;

@@ -127,7 +127,9 @@ export function detectFulfillmentOverlaps(
   const active = batches
     .map((b) => {
       const start = toTimestampMs(b.goesLiveAt) ?? 0;
-      const end = toTimestampMs(b.autoRetireAt) ?? start + 24 * 60 * 60 * 1000;
+      const end = b.autoRetireAt
+        ? (toTimestampMs(b.autoRetireAt) ?? Number.POSITIVE_INFINITY)
+        : Number.POSITIVE_INFINITY;
       return { batch: b, start, end };
     })
     .sort((a, b) => a.start - b.start);

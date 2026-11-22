@@ -205,7 +205,7 @@ export function BoothEngine() {
 
     let resultAttempt: RaffleAttempt;
 
-    if (isWin) {
+    if (isWin && RAFFLE_REWARD_TIERS.length > 0) {
       // Pick reward tier based on weighted probability
       const totalWeight = RAFFLE_REWARD_TIERS.reduce((sum, t) => sum + t.weight, 0);
       let randWeight = Math.random() * totalWeight;

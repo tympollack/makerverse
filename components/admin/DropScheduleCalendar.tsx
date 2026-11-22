@@ -28,6 +28,7 @@ import {
   rescheduleBatchWindow,
   togglePublicTeaser,
 } from "@/app/(admin)/vendor/schedule/actions";
+import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { cn, formatCents } from "@/lib/utils";
 
 const STATUS_STYLE: Record<BatchReleaseStatus, { label: string; pill: string; dot: string }> = {
@@ -72,15 +73,17 @@ function buildCalendarDays(anchorDate: Date, viewMode: "month" | "2week"): Date[
   }
 
   const firstOfMonth = new Date(anchorDate.getFullYear(), anchorDate.getMonth(), 1);
+  const lastOfMonth = new Date(anchorDate.getFullYear(), anchorDate.getMonth() + 1, 0);
   const start = addDays(firstOfMonth, -firstOfMonth.getDay());
-  return Array.from({ length: 35 }, (_, i) => addDays(start, i));
+  const totalWeeks = Math.ceil((firstOfMonth.getDay() + lastOfMonth.getDate()) / 7);
+  return Array.from({ length: totalWeeks * 7 }, (_, i) => addDays(start, i));
 }
 
 function batchSpansDay(batch: ProductBatch, day: Date): boolean {
   const dayStart = new Date(day.getFullYear(), day.getMonth(), day.getDate(), 0, 0, 0, 0).getTime();
   const dayEnd = new Date(day.getFullYear(), day.getMonth(), day.getDate(), 23, 59, 59, 999).getTime();
   const start = Date.parse(batch.goesLiveAt);
-  const end = batch.autoRetireAt ? Date.parse(batch.autoRetireAt) : start + 24 * 3_600_000;
+  const end = batch.autoRetireAt ? Date.parse(batch.autoRetireAt) : Number.POSITIVE_INFINITY;
   return start <= dayEnd && end >= dayStart;
 }
 
@@ -131,6 +134,17 @@ export function DropScheduleCalendar({
     setModalOpen(true);
   };
 
+  const getAuthToken = async (): Promise<string | undefined> => {
+    const sb = getSupabaseBrowserClient();
+    if (!sb) return undefined;
+    try {
+      const { data } = await sb.auth.getSession();
+      return data?.session?.access_token;
+    } catch {
+      return undefined;
+    }
+  };
+
   const handleSaveBatch = async (payload: {
     batchId?: string;
     title: string;
@@ -144,12 +158,21 @@ export function DropScheduleCalendar({
     chipTier: ProductBatch["chipTier"];
     basePriceCents: number;
   }) => {
+    const authToken = await getAuthToken();
+
     if (payload.batchId) {
       const res = await rescheduleBatchWindow({
         batchId: payload.batchId,
         goesLiveAt: payload.goesLiveAt,
         autoRetireAt: payload.autoRetireAt,
         isPublished: payload.isPublished,
+        title: payload.title,
+        sku: payload.sku,
+        versionTag: payload.versionTag,
+        isPublicTeaser: payload.isPublicTeaser,
+        chipTier: payload.chipTier,
+        basePriceCents: payload.basePriceCents,
+        authToken,
       });
       if (!res.success) {
         throw new Error(res.error || "Failed to reschedule drop.");
@@ -186,6 +209,7 @@ export function DropScheduleCalendar({
       isPublished: payload.isPublished,
       chipTier: payload.chipTier,
       basePriceCents: payload.basePriceCents,
+      authToken,
     });
     if (!res.success || !res.batch) {
       throw new Error(res.error || "Failed to schedule drop.");
@@ -195,10 +219,17 @@ export function DropScheduleCalendar({
 
   const handleToggleTeaser = async (batch: ProductBatch) => {
     const next = !batch.isPublicTeaser;
-    setBatches((prev) =>
-      prev.map((b) => (b.id === batch.id ? { ...b, isPublicTeaser: next } : b)),
-    );
-    await togglePublicTeaser({ batchId: batch.id, isPublicTeaser: next });
+    const authToken = await getAuthToken();
+    const res = await togglePublicTeaser({
+      batchId: batch.id,
+      isPublicTeaser: next,
+      authToken,
+    });
+    if (res.success) {
+      setBatches((prev) =>
+        prev.map((b) => (b.id === batch.id ? { ...b, isPublicTeaser: next } : b)),
+      );
+    }
   };
 
   const headerLabel = anchorDate.toLocaleDateString("en-US", {
@@ -354,6 +385,7 @@ export function DropScheduleCalendar({
                 role="button"
                 tabIndex={0}
                 onKeyDown={(e) => {
+                  if (e.target !== e.currentTarget) return;
                   if (e.key === "Enter" || e.key === " ") {
                     e.preventDefault();
                     openNewForDay(day);

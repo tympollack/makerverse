@@ -1,7 +1,7 @@
 // components/shop/get-bent/DualTrackCheckoutPanel.tsx
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Flame,
   Clock,
@@ -12,6 +12,7 @@ import {
   ShieldCheck,
   Terminal,
 } from "lucide-react";
+import { IS_MOCK_ENABLED } from "@/lib/mock/adminData";
 import { cn } from "@/lib/utils";
 
 export type GarmentSize = "S" | "M" | "L" | "XL" | "XXL";
@@ -86,6 +87,8 @@ interface DualTrackCheckoutPanelProps {
   onIncrementMinted: () => void;
   topBidDollars: number;
   onUpdateTopBid: (newBid: number) => void;
+  startsAtMs?: number;
+  cutoffMs?: number;
 }
 
 export function DualTrackCheckoutPanel({
@@ -93,8 +96,11 @@ export function DualTrackCheckoutPanel({
   onIncrementMinted,
   topBidDollars,
   onUpdateTopBid,
+  startsAtMs,
+  cutoffMs,
 }: DualTrackCheckoutPanelProps) {
   const [selectedSize, setSelectedSize] = useState<GarmentSize>("L");
+  const [nowMs, setNowMs] = useState<number>(() => Date.now());
   const [proxyBidInput, setProxyBidInput] = useState<string>(
     String(topBidDollars + 5),
   );
@@ -108,17 +114,60 @@ export function DualTrackCheckoutPanel({
   const [ledger, setLedger] = useState<SerialLedgerEntry[]>(INITIAL_LEDGER);
   const [toastNotice, setToastNotice] = useState<string | null>(null);
 
+  useEffect(() => {
+    if (!cutoffMs && !startsAtMs) return;
+    const timer = setInterval(() => setNowMs(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, [cutoffMs, startsAtMs]);
+
+  const isBeforeOpen = Boolean(startsAtMs && nowMs < startsAtMs);
+  const isClosed = Boolean(cutoffMs && nowMs >= cutoffMs);
+  const isWindowLocked = isBeforeOpen || isClosed;
+
   const parsedBid = Math.max(25, Number(proxyBidInput) || 25);
   const bidSurplus = Math.max(0, parsedBid - 25);
   const creatorSurplusShare = Number((bidSurplus * 0.8).toFixed(2));
   const creatorTotalFromAuction = Number((24.5 + creatorSurplusShare).toFixed(2));
 
-  const handlePlaceBid = (e: React.FormEvent) => {
+  const persistHoldRecord = async (skuLabel: string): Promise<boolean> => {
+    try {
+      const res = await fetch("/api/holds", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          productId: "gb_batch_001",
+          sku: skuLabel,
+          userId: buyerHandle.trim() || "shopper_anon",
+          qty: 1,
+          ttlSeconds: 600,
+        }),
+      });
+      return res.ok || IS_MOCK_ENABLED;
+    } catch {
+      return IS_MOCK_ENABLED;
+    }
+  };
+
+  const handlePlaceBid = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isWindowLocked) {
+      setToastNotice(
+        isClosed
+          ? "Batch 001 window has closed and edition count N is permanently locked."
+          : "Batch 001 has not opened yet.",
+      );
+      return;
+    }
     if (parsedBid <= topBidDollars) {
       setToastNotice(
         `Proxy bid must exceed current leading bid of $${topBidDollars.toFixed(2)} for #069 / N.`,
       );
+      return;
+    }
+
+    const ok = await persistHoldRecord("GB-BF-001-BID-069");
+    if (!ok) {
+      setToastNotice("Unable to record bid reservation. Please retry.");
       return;
     }
 
@@ -156,7 +205,22 @@ export function DualTrackCheckoutPanel({
     );
   };
 
-  const handleHopperOrVanityCheckout = () => {
+  const handleHopperOrVanityCheckout = async () => {
+    if (isWindowLocked) {
+      setToastNotice(
+        isClosed
+          ? "Batch 001 window has closed and edition count N is permanently locked."
+          : "Batch 001 has not opened yet.",
+      );
+      return;
+    }
+
+    const ok = await persistHoldRecord(selectedVanity ? `GB-BF-001-${selectedVanity}` : "GB-BF-001-HOPPER");
+    if (!ok) {
+      setToastNotice("Unable to reserve edition slot. Please retry.");
+      return;
+    }
+
     const nextN = totalMinted + 1;
     onIncrementMinted();
 
@@ -331,11 +395,14 @@ export function DualTrackCheckoutPanel({
 
         <button
           type="submit"
-          className="w-full py-3 px-4 rounded-xl bg-[#CC5500] hover:bg-[#e0621a] text-[#F9F9F9] font-mono text-xs sm:text-sm font-bold uppercase tracking-wider shadow-[0_0_24px_rgba(204,85,0,0.4)] transition-all flex items-center justify-center gap-2 cursor-pointer"
+          disabled={isWindowLocked}
+          className="w-full py-3 px-4 rounded-xl bg-[#CC5500] hover:bg-[#e0621a] disabled:opacity-45 text-[#F9F9F9] font-mono text-xs sm:text-sm font-bold uppercase tracking-wider shadow-[0_0_24px_rgba(204,85,0,0.4)] transition-all flex items-center justify-center gap-2 cursor-pointer disabled:cursor-not-allowed"
         >
           <Flame className="w-4 h-4" />
           <span>
-            Place Proxy Bid for #069 / N (${parsedBid.toFixed(2)} Ceiling · Size {selectedSize})
+            {isWindowLocked
+              ? "24hr Window Closed — Edition Locked"
+              : `Place Proxy Bid for #069 / N ($${parsedBid.toFixed(2)} Ceiling · Size ${selectedSize})`}
           </span>
         </button>
       </form>
@@ -421,14 +488,17 @@ export function DualTrackCheckoutPanel({
 
         <button
           type="button"
+          disabled={isWindowLocked}
           onClick={handleHopperOrVanityCheckout}
-          className="w-full py-3 px-4 rounded-xl bg-white/10 hover:bg-white/15 border border-white/20 text-[#F9F9F9] font-mono text-xs sm:text-sm font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-2 cursor-pointer"
+          className="w-full py-3 px-4 rounded-xl bg-white/10 hover:bg-white/15 disabled:opacity-45 border border-white/20 text-[#F9F9F9] font-mono text-xs sm:text-sm font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-2 cursor-pointer disabled:cursor-not-allowed"
         >
           <ShoppingBag className="w-4 h-4 text-[#22D3EE]" />
           <span>
-            {selectedVanity
-              ? `Claim Vanity Serial ${selectedVanity} / N — $30.00 (Size ${selectedSize})`
-              : `Enter Sequential Hopper (#${String(totalMinted + 1).padStart(3, "0")} / N) — $25.00 (Size ${selectedSize})`}
+            {isWindowLocked
+              ? "Drop Window Locked"
+              : selectedVanity
+                ? `Claim Vanity Serial ${selectedVanity} / N — $30.00 (Size ${selectedSize})`
+                : `Enter Sequential Hopper (#${String(totalMinted + 1).padStart(3, "0")} / N) — $25.00 (Size ${selectedSize})`}
           </span>
         </button>
       </div>

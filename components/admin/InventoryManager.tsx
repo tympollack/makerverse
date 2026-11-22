@@ -291,8 +291,12 @@ export function InventoryManager({
       chipTier: item.chipTier,
       coSignRequired: item.coSignRequired,
       versionTag: item.versionTag ?? "v1.0",
+      artistAttribution: item.artistAttribution,
+      parentSku: item.parentSku,
       frontChestStamp: item.frontChestStamp,
       backStatement: item.backStatement,
+      auctionEnabled: item.auctionEnabled,
+      durationHours: item.durationHours,
     });
     setDraftKey((k) => k + 1);
     setDrawerOpen(true);
@@ -313,6 +317,8 @@ export function InventoryManager({
       parentSku: item.sku,
       frontChestStamp: item.frontChestStamp,
       backStatement: item.backStatement,
+      auctionEnabled: item.auctionEnabled,
+      durationHours: item.durationHours,
     });
     setDraftKey((k) => k + 1);
     setDrawerOpen(true);

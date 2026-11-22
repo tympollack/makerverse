@@ -950,7 +950,7 @@ export default function BrandShopPage({
         <UpcomingDropsRail brandHandle={currentBrand.handle} />
 
         {/* Product Catalog Section */}
-        <section className="space-y-6">
+        <section id="catalog" className="space-y-6">
           {/* Header & Filter Controls */}
           <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 pb-2 border-b border-white/8">
             <div>

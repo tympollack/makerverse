@@ -56,10 +56,11 @@ export function FoundingApplicationForm() {
       }
     } catch {
       setResult({
-        success: true,
+        success: false,
         persistedToDb: false,
-        applicationId: `MV-WAVE1-${Date.now().toString(36).toUpperCase()}`,
-        message: `Application queued for Founding Cohort · Wave 1 (${artistBrandName}). Check ${email} for confirmation.`,
+        applicationId: "",
+        error: "NETWORK_ERROR",
+        message: "Network error submitting application. Please try again.",
       });
     } finally {
       setIsSubmitting(false);

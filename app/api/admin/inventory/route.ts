@@ -53,6 +53,8 @@ export async function POST(request: NextRequest) {
         frontChestStamp: body.frontChestStamp || null,
         backStatement: body.backStatement || null,
         auctionEnabled: Boolean(body.auctionEnabled),
+        durationHours: body.durationHours ?? null,
+        uncapped: Boolean(body.uncapped),
       },
       product_line_id: body.productLineId || "l0000001-0000-0000-0000-000000000001",
     } as any).select().single();

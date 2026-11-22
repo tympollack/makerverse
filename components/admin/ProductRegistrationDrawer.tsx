@@ -19,8 +19,9 @@ import {
   DropPresetsSection,
   type DropPresetConfig,
 } from "@/components/admin/DropPresetsSection";
-import type { InventoryItem } from "@/lib/mock/adminData";
+import { IS_MOCK_ENABLED, type InventoryItem } from "@/lib/mock/adminData";
 import type { ChipTier } from "@/lib/mock/shopData";
+import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 
 interface ProductRegistrationDrawerProps {
@@ -88,6 +89,9 @@ export function ProductRegistrationDrawer({
   const [backStatement, setBackStatement] = useState(() => initialDraft?.backStatement ?? "");
   const [auctionEnabled, setAuctionEnabled] = useState(() => Boolean(initialDraft?.auctionEnabled));
   const [durationHours, setDurationHours] = useState<number | null>(() => initialDraft?.durationHours ?? null);
+  const [uncapped, setUncapped] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   // Simulation State
   const [simulatedResalePrice, setSimulatedResalePrice] = useState(100);
@@ -97,6 +101,7 @@ export function ProductRegistrationDrawer({
     setPriceUsd(preset.priceUsd);
     setChipTier(preset.chipTier);
     setStockQty(preset.stockQty);
+    setUncapped(preset.uncapped);
     setCoSignRequired(preset.coSignRequired);
     setAuctionEnabled(preset.auctionEnabled);
     setDurationHours(preset.durationHours);
@@ -139,18 +144,22 @@ export function ProductRegistrationDrawer({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title.trim() || !sku.trim()) return;
+    if (!title.trim() || !sku.trim() || isSubmitting) return;
 
+    setIsSubmitting(true);
+    setSaveError(null);
+
+    const effectiveStock = uncapped ? 0 : Number(stockQty) || 0;
     const payload: Omit<InventoryItem, "id" | "lastUpdated"> = {
       sku: sku.trim().toUpperCase(),
       title: title.trim(),
-      stock: Number(stockQty) || 0,
-      maxStock: Number(stockQty) || 24,
+      stock: effectiveStock,
+      maxStock: uncapped ? 0 : Number(stockQty) || 24,
       priceCents: Math.round((Number(priceUsd) || 25) * 100),
       royaltyBps,
       chipTier,
       coSignRequired,
-      status: Number(stockQty) > 0 ? "IN_STOCK" : "OUT_OF_STOCK",
+      status: uncapped || effectiveStock > 0 ? "IN_STOCK" : "OUT_OF_STOCK",
       versionTag,
       artistAttribution: artistAttribution.trim() || undefined,
       parentSku: parentSku || undefined,
@@ -161,19 +170,42 @@ export function ProductRegistrationDrawer({
     };
 
     try {
-      await fetch("/api/admin/inventory", {
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+      };
+      const sb = getSupabaseBrowserClient();
+      if (sb) {
+        const { data } = await sb.auth.getSession();
+        if (data?.session?.access_token) {
+          headers.Authorization = `Bearer ${data.session.access_token}`;
+        }
+      }
+
+      const res = await fetch("/api/admin/inventory", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify({
           ...payload,
+          uncapped,
           description: backStatement.trim() || frontChestStamp.trim() || "",
           makerNotes: artistAttribution.trim()
             ? `${versionTag} · ${artistAttribution.trim()}`
             : versionTag,
         }),
       });
+
+      if (!res.ok && !IS_MOCK_ENABLED) {
+        const errBody = await res.json().catch(() => ({}));
+        setSaveError(errBody.error || "Failed to save listing to inventory storage.");
+        setIsSubmitting(false);
+        return;
+      }
     } catch {
-      // Offline / unit test fallback handled locally
+      if (!IS_MOCK_ENABLED) {
+        setSaveError("Network error saving listing to inventory storage.");
+        setIsSubmitting(false);
+        return;
+      }
     }
 
     onRegisterProduct(payload);
@@ -186,6 +218,8 @@ export function ProductRegistrationDrawer({
     setParentSku(null);
     setFrontChestStamp("");
     setBackStatement("");
+    setUncapped(false);
+    setIsSubmitting(false);
     handleGenerateSku();
     onClose();
   };
@@ -238,6 +272,12 @@ export function ProductRegistrationDrawer({
 
             {/* Scrollable Form Body */}
             <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-6">
+              {saveError && (
+                <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/35 font-mono text-xs text-red-300">
+                  {saveError}
+                </div>
+              )}
+
               {/* Quick-Start Drop Presets & Pure-Type Generator */}
               <DropPresetsSection
                 selectedPresetId={selectedPresetId}
