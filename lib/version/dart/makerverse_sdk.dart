@@ -69,17 +69,49 @@ class EcosystemVersion implements Comparable<EcosystemVersion> {
     }
   }
 
+  static int _comparePrerelease(String? a, String? b) {
+    if (a == null && b == null) return 0;
+    if (a == null && b != null) return 1;
+    if (a != null && b == null) return -1;
+
+    final aParts = a!.split('.');
+    final bParts = b!.split('.');
+    final len = aParts.length > bParts.length ? aParts.length : bParts.length;
+
+    for (var i = 0; i < len; i++) {
+      if (i >= aParts.length) return -1;
+      if (i >= bParts.length) return 1;
+      final aPart = aParts[i];
+      final bPart = bParts[i];
+      if (aPart == bPart) continue;
+
+      final aNum = int.tryParse(aPart);
+      final bNum = int.tryParse(bPart);
+      final aIsNum = aNum != null && RegExp(r'^\d+$').hasMatch(aPart);
+      final bIsNum = bNum != null && RegExp(r'^\d+$').hasMatch(bPart);
+
+      if (aIsNum && bIsNum) {
+        if (aNum != bNum) return aNum.compareTo(bNum);
+      } else if (aIsNum && !bIsNum) {
+        return -1;
+      } else if (!aIsNum && bIsNum) {
+        return 1;
+      } else {
+        final cmp = aPart.compareTo(bPart);
+        if (cmp != 0) return cmp;
+      }
+    }
+
+    return 0;
+  }
+
   @override
   int compareTo(EcosystemVersion other) {
     if (major != other.major) return major.compareTo(other.major);
     if (minor != other.minor) return minor.compareTo(other.minor);
     if (revision != other.revision) return revision.compareTo(other.revision);
 
-    if (prerelease == null && other.prerelease == null) return 0;
-    if (prerelease == null && other.prerelease != null) return 1;
-    if (prerelease != null && other.prerelease == null) return -1;
-
-    return (prerelease ?? '').compareTo(other.prerelease ?? '');
+    return _comparePrerelease(prerelease, other.prerelease);
   }
 
   bool operator <(EcosystemVersion other) => compareTo(other) < 0;
@@ -158,6 +190,10 @@ class SemVerRange {
   }
 
   static bool _evaluateToken(EcosystemVersion version, String token) {
+    if (token == '*' || token.toLowerCase() == 'x' || token.toLowerCase() == 'all') {
+      return true;
+    }
+
     if (token.startsWith('^')) {
       final base = EcosystemVersion.parse(token.substring(1));
       if (version < base) return false;
@@ -192,12 +228,26 @@ class SemVerRange {
       return version == EcosystemVersion.parse(token.substring(1));
     }
 
+    // Support wildcard / X-ranges e.g. 1.x, 1.*, 1.2.x, 1.2.*
+    final wildcardMinorMatch = RegExp(r'^v?(\d+)\.[xX\*]$').firstMatch(token);
+    if (wildcardMinorMatch != null) {
+      final targetMajor = int.parse(wildcardMinorMatch.group(1)!);
+      return version.major == targetMajor;
+    }
+
+    final wildcardPatchMatch = RegExp(r'^v?(\d+)\.(\d+)\.[xX\*]$').firstMatch(token);
+    if (wildcardPatchMatch != null) {
+      final targetMajor = int.parse(wildcardPatchMatch.group(1)!);
+      final targetMinor = int.parse(wildcardPatchMatch.group(2)!);
+      return version.major == targetMajor && version.minor == targetMinor;
+    }
+
     final exact = EcosystemVersion.tryParse(token);
     if (exact != null) {
       return version == exact;
     }
 
-    return true;
+    return false;
   }
 }
 
@@ -316,13 +366,17 @@ HandshakeResult validateClientVersion(
   GatewayHandshakeConfig gatewayConfig,
 ) {
   if (clientVersion < gatewayConfig.minSupportedVersion ||
-      clientVersion.major < gatewayConfig.minSupportedVersion.major) {
+      clientVersion.major < gatewayConfig.minSupportedVersion.major ||
+      clientVersion.major > gatewayConfig.gatewayVersion.major) {
+    final isForwardMismatch = clientVersion.major > gatewayConfig.gatewayVersion.major;
     return HandshakeResult(
       status: 'force_update_required',
       compatible: false,
       actionRequired: true,
       message: gatewayConfig.message ??
-          'Client version ${clientVersion.toString()} is below minimum supported version (${gatewayConfig.minSupportedVersion.toString()}).',
+          (isForwardMismatch
+              ? 'Client major version (${clientVersion.major}) is incompatible with gateway major version (${gatewayConfig.gatewayVersion.major}).'
+              : 'Client version ${clientVersion.toString()} is below minimum supported version (${gatewayConfig.minSupportedVersion.toString()}).'),
       clientVersion: clientVersion,
       gatewayVersion: gatewayConfig.gatewayVersion,
       minSupportedVersion: gatewayConfig.minSupportedVersion,

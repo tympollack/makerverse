@@ -15,8 +15,10 @@ import { MonoValue, PriceTag, ChipUID } from "@/components/ui/MonoValue";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { VersionReleaseBadge } from "@/components/admin/VersionReleaseBadge";
 import { HardwareInspectionModal } from "@/components/shop/HardwareInspectionModal";
+import { ProductVisual } from "@/components/shop/ProductVisual";
 import { UpcomingDropsRail } from "@/components/shop/UpcomingDropsRail";
 import { DropShareBar } from "@/components/shop/DropShareBar";
+import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import {
   BRAND_PASSPORT,
   ALL_BRANDS,
@@ -33,118 +35,6 @@ import {
   type ChipTier,
 } from "@/lib/mock/shopData";
 import { cn, formatCents, relativeTime } from "@/lib/utils";
-
-// ─── Visual Craftsman Product Preview Illustrations ──────────────────────────
-
-function ProductVisual({ product }: { product: Product }) {
-  const isOutOfStock = product.stock === 0;
-
-  // Custom tailored craftsman SVG representations for high visual fidelity
-  const renderVisual = () => {
-    switch (product.id) {
-      case "prod_001": // Keyring
-        return (
-          <svg className="w-24 h-24 text-orange-500/80" viewBox="0 0 100 100" fill="none" stroke="currentColor">
-            <circle cx="50" cy="45" r="28" strokeWidth="6" className="text-orange-600/60" />
-            <circle cx="50" cy="45" r="22" strokeWidth="2" strokeDasharray="3 3" className="text-amber-400/50" />
-            <rect x="42" y="66" width="16" height="24" rx="4" fill="currentColor" fillOpacity="0.2" strokeWidth="3" className="text-stone-400" />
-            <circle cx="50" cy="78" r="3" fill="#22D3EE" className="animate-pulse" />
-          </svg>
-        );
-      case "prod_002": // Wallet
-        return (
-          <svg className="w-24 h-24 text-amber-700/80" viewBox="0 0 100 100" fill="none" stroke="currentColor">
-            <rect x="22" y="28" width="56" height="44" rx="6" strokeWidth="4" className="text-amber-800/80" fill="#78350F" fillOpacity="0.2" />
-            <line x1="22" y1="50" x2="78" y2="50" strokeWidth="2" strokeDasharray="4 2" className="text-amber-300/40" />
-            <path d="M50 28 V 72" strokeWidth="2" strokeDasharray="2 2" className="text-amber-400/30" />
-            <circle cx="68" cy="60" r="4" fill="#22D3EE" fillOpacity="0.8" className="animate-pulse" />
-          </svg>
-        );
-      case "prod_003": // Pennant
-        return (
-          <svg className="w-24 h-24 text-stone-400" viewBox="0 0 100 100" fill="none" stroke="currentColor">
-            <polygon points="25,25 78,48 25,72" strokeWidth="4" className="text-stone-400/80" fill="#44403C" fillOpacity="0.3" />
-            <circle cx="40" cy="48" r="6" strokeWidth="2" className="text-orange-400" />
-            <rect x="22" y="20" width="6" height="60" rx="2" fill="currentColor" className="text-stone-500" />
-          </svg>
-        );
-      case "prod_004": // Bracelet
-        return (
-          <svg className="w-24 h-24 text-orange-400" viewBox="0 0 100 100" fill="none" stroke="currentColor">
-            <ellipse cx="50" cy="50" rx="32" ry="20" strokeWidth="5" className="text-orange-600/70" />
-            <ellipse cx="50" cy="50" rx="32" ry="20" strokeWidth="2" strokeDasharray="6 6" className="text-amber-300/60" />
-            <circle cx="50" cy="30" r="4" fill="#CC5500" />
-            <circle cx="50" cy="70" r="4" fill="#CC5500" />
-          </svg>
-        );
-      case "prod_005": // Key Fob
-        return (
-          <svg className="w-24 h-24 text-amber-600/80" viewBox="0 0 100 100" fill="none" stroke="currentColor">
-            <path d="M40 20 H60 L68 70 A18 18 0 0 1 32 70 Z" strokeWidth="4" className="text-amber-700/80" fill="#92400E" fillOpacity="0.2" />
-            <circle cx="50" cy="32" r="5" strokeWidth="3" className="text-amber-300" />
-            <circle cx="50" cy="65" r="4" fill="#8B5CF6" className="animate-pulse" />
-          </svg>
-        );
-      case "prod_006": // Buckle
-        return (
-          <svg className="w-24 h-24 text-yellow-500/80" viewBox="0 0 100 100" fill="none" stroke="currentColor">
-            <rect x="22" y="30" width="56" height="40" rx="8" strokeWidth="5" className="text-yellow-600/80" fill="#CA8A04" fillOpacity="0.15" />
-            <line x1="50" y1="30" x2="50" y2="70" strokeWidth="4" className="text-yellow-400" />
-            <circle cx="50" cy="50" r="4" fill="#CC5500" />
-          </svg>
-        );
-      default:
-        return <ShoppingBag className="w-16 h-16 text-white/15" />;
-    }
-  };
-
-  return (
-    <div
-      className={cn(
-        "h-48 rounded-xl bg-gradient-to-b from-stone-800/80 via-stone-900/90 to-[#141414] relative overflow-hidden flex items-center justify-center border border-white/5",
-        isOutOfStock && "grayscale opacity-60",
-      )}
-    >
-      {/* Background craft grid and radial ambience */}
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_rgba(204,85,0,0.12),_transparent_70%)]" />
-      <div
-        className="absolute inset-0 opacity-15"
-        style={{
-          backgroundImage:
-            "radial-gradient(circle, rgba(255,255,255,0.2) 1px, transparent 1px)",
-          backgroundSize: "18px 18px",
-        }}
-      />
-
-      {/* Visual illustration */}
-      <div className="relative z-10 drop-shadow-[0_10px_20px_rgba(0,0,0,0.8)] transition-transform duration-300 group-hover:scale-105">
-        {renderVisual()}
-      </div>
-
-      {/* Out of stock banner */}
-      {isOutOfStock && (
-        <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/65 backdrop-blur-[2px]">
-          <div className="px-3.5 py-1.5 rounded-lg border border-red-500/40 bg-red-500/10 text-red-300 font-mono text-xs font-semibold tracking-wider uppercase shadow-lg">
-            Sold Out · Restock Queued
-          </div>
-        </div>
-      )}
-
-      {/* Chip DNA Tier Micro-badge */}
-      <div className="absolute top-2.5 right-2.5 z-10">
-        <ProvenanceBadge tier={product.chipTier} compact interactive />
-      </div>
-
-      {/* Materials count micro-pill */}
-      <div className="absolute bottom-2.5 left-2.5 z-10">
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-black/50 border border-white/10 text-[10px] font-mono text-white/50">
-          <Tag className="w-2.5 h-2.5 text-orange-400" />
-          {product.materials[0]}
-        </span>
-      </div>
-    </div>
-  );
-}
 
 // ─── Brand Hero Header ────────────────────────────────────────────────────────
 
@@ -346,7 +236,7 @@ function ProductCard({
 }: {
   product: Product;
   onInspect: (product: Product) => void;
-  onDemandSignal?: (productId: string, newCount: number) => void;
+  onDemandSignal?: (productId: string, newCount: number, active: boolean) => void;
 }) {
   const stockPct = (product.stock / product.maxStock) * 100;
   const isOutOfStock = product.stock === 0;
@@ -467,7 +357,7 @@ function ProductCard({
           <DemandSignalButton
             initialCount={product.demandSignals}
             productId={product.id}
-            onSignalChange={(count) => onDemandSignal?.(product.id, count)}
+            onSignalChange={(count, active) => onDemandSignal?.(product.id, count, active)}
           />
 
           <div className="ml-auto">
@@ -579,10 +469,12 @@ function ShoppablePinMarker({
 
 function SpatialModal({
   post,
+  products = PRODUCTS,
   onClose,
   onSelectProduct,
 }: {
   post: ShoppablePost;
+  products?: Product[];
   onClose: () => void;
   onSelectProduct: (product: Product) => void;
 }) {
@@ -649,7 +541,7 @@ function SpatialModal({
 
             {/* Pulsing Shoppable Pins */}
             {post.pins.map((pin) => {
-              const product = PRODUCTS.find((p) => p.id === pin.productId);
+              const product = products.find((p) => p.id === pin.productId) || PRODUCTS.find((p) => p.id === pin.productId);
               return (
                 <ShoppablePinMarker
                   key={pin.id}
@@ -679,7 +571,7 @@ function SpatialModal({
 
             <div className="space-y-3 flex-1">
               {post.pins.map((pin) => {
-                const product = PRODUCTS.find((p) => p.id === pin.productId);
+                const product = products.find((p) => p.id === pin.productId) || PRODUCTS.find((p) => p.id === pin.productId);
                 if (!product) return null;
                 const isHovered = hoveredPinId === pin.id;
 
@@ -824,7 +716,7 @@ export default function BrandShopPage({
   const resolvedParams = params instanceof Promise ? use(params) : params;
   const brandHandle = (resolvedParams?.brandId as string) || "";
 
-  const currentBrand = useMemo<BrandPassport>(() => {
+  const defaultBrand = useMemo<BrandPassport>(() => {
     const found = getBrandByHandle(brandHandle);
     if (found) return found;
     if (IS_MOCK_ENABLED) return BRAND_PASSPORT;
@@ -837,28 +729,64 @@ export default function BrandShopPage({
     };
   }, [brandHandle]);
 
-  const brandProducts = useMemo(() => {
-    return IS_MOCK_ENABLED ? getProductsByBrandHandle(currentBrand.handle) : [];
-  }, [currentBrand.handle]);
+  const defaultProducts = useMemo(() => {
+    return IS_MOCK_ENABLED ? getProductsByBrandHandle(defaultBrand.handle) : [];
+  }, [defaultBrand.handle]);
 
-  const brandPosts = useMemo(() => {
-    return IS_MOCK_ENABLED ? getPostsByBrandHandle(currentBrand.handle) : [];
-  }, [currentBrand.handle]);
+  const defaultPosts = useMemo(() => {
+    return IS_MOCK_ENABLED ? getPostsByBrandHandle(defaultBrand.handle) : [];
+  }, [defaultBrand.handle]);
+
+  const [currentBrand, setCurrentBrand] = useState<BrandPassport>(defaultBrand);
+  const [productsState, setProductsState] = useState<Product[]>(defaultProducts);
+  const [brandPosts, setBrandPosts] = useState<ShoppablePost[]>(defaultPosts);
 
   // Local interactive state
-  const [followerCount, setFollowerCount] = useState(currentBrand.followerCount);
+  const [followerCount, setFollowerCount] = useState(defaultBrand.followerCount);
   const [isFollowingBrand, setIsFollowingBrand] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedTier, setSelectedTier] = useState<string>("ALL");
   const [inStockOnly, setInStockOnly] = useState(false);
-  const [productsState, setProductsState] = useState<Product[]>(brandProducts);
 
-  // Sync state when brand changes
-  const [prevBrandHandle, setPrevBrandHandle] = useState(currentBrand.handle);
-  if (prevBrandHandle !== currentBrand.handle) {
-    setPrevBrandHandle(currentBrand.handle);
-    setProductsState(brandProducts);
-    setFollowerCount(currentBrand.followerCount);
+  // Fetch live catalog from database-backed API
+  useEffect(() => {
+    let active = true;
+    async function loadCatalog() {
+      try {
+        const res = await fetch(`/api/brands/${encodeURIComponent(brandHandle)}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (active) {
+            if (data.brand) {
+              setCurrentBrand(data.brand);
+              setFollowerCount(data.brand.followerCount);
+            }
+            if (Array.isArray(data.products)) {
+              setProductsState(data.products);
+            }
+            if (Array.isArray(data.posts)) {
+              setBrandPosts(data.posts);
+            }
+          }
+        }
+      } catch (err) {
+        console.warn("[BrandShopPage] Live database catalog fetch fallback:", err);
+      }
+    }
+    loadCatalog();
+    return () => {
+      active = false;
+    };
+  }, [brandHandle]);
+
+  // Sync state when brand parameter changes
+  const [prevBrandHandle, setPrevBrandHandle] = useState(brandHandle);
+  if (prevBrandHandle !== brandHandle) {
+    setPrevBrandHandle(brandHandle);
+    setCurrentBrand(defaultBrand);
+    setProductsState(defaultProducts);
+    setBrandPosts(defaultPosts);
+    setFollowerCount(defaultBrand.followerCount);
     setIsFollowingBrand(false);
   }
 
@@ -877,18 +805,53 @@ export default function BrandShopPage({
     }
   };
 
-  const handleDemandSignal = async (productId: string, newCount: number) => {
+  const handleDemandSignal = async (productId: string, newCount: number, active: boolean) => {
+    const prevProduct = productsState.find((p) => p.id === productId);
+    const prevCount = prevProduct?.demandSignals ?? 0;
+
+    // Optimistically update state
     setProductsState((prev) =>
       prev.map((p) => (p.id === productId ? { ...p, demandSignals: newCount } : p))
     );
+
     try {
-      await fetch("/api/products/signal", {
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      const supabase = getSupabaseBrowserClient();
+      if (supabase) {
+        let { data: { session } } = await supabase.auth.getSession();
+        if (!session?.access_token) {
+          const { data: anonData } = await supabase.auth.signInAnonymously().catch(() => ({ data: { session: null } }));
+          session = anonData?.session ?? null;
+        }
+        if (session?.access_token) {
+          headers["Authorization"] = `Bearer ${session.access_token}`;
+        }
+      }
+
+      const res = await fetch("/api/products/signal", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ productId, count: newCount }),
+        headers,
+        body: JSON.stringify({ productId, count: newCount, active }),
       });
+
+      if (!res.ok) {
+        // Revert optimistic count on server failure (BUG_0005)
+        setProductsState((prev) =>
+          prev.map((p) => (p.id === productId ? { ...p, demandSignals: prevCount } : p))
+        );
+      } else {
+        const data = await res.json();
+        if (typeof data.demandSignals === "number") {
+          setProductsState((prev) =>
+            prev.map((p) => (p.id === productId ? { ...p, demandSignals: data.demandSignals } : p))
+          );
+        }
+      }
     } catch (e) {
       console.warn("Demand signal API fallback:", e);
+      setProductsState((prev) =>
+        prev.map((p) => (p.id === productId ? { ...p, demandSignals: prevCount } : p))
+      );
     }
   };
 
@@ -1207,6 +1170,7 @@ export default function BrandShopPage({
         {activeSpatialPost && (
           <SpatialModal
             post={activeSpatialPost}
+            products={productsState}
             onClose={() => setActiveSpatialPost(null)}
             onSelectProduct={(product) => {
               setActiveSpatialPost(null);

@@ -43,17 +43,25 @@ export async function seedMakerverseDatabase() {
 
     // 2. Seed Product Lines & Products
     console.log("\n  2. Seeding Product Lines & Products...");
+    const brandProductLines = new Map<string, string>();
+    for (const brand of ALL_BRANDS) {
+      const lineId = brand.id.replace(/^b/, "l");
+      brandProductLines.set(brand.id, lineId);
+
+      const { error: lineErr } = await supabase.from("product_lines").upsert({
+        id: lineId,
+        brand_id: brand.id,
+        title: `${brand.name} Master Series`,
+        description: `Official workshop batches and serialized pieces for ${brand.name}.`,
+      } as any);
+
+      if (lineErr) console.error(`     ✗ Failed to seed product line for ${brand.name}:`, lineErr.message);
+      else console.log(`     ✓ Seeded product line: ${brand.name} Master Series`);
+    }
+
     for (const prod of PRODUCTS) {
       const brandId = prod.brandId || "b0000001-0000-0000-0000-000000000001";
-      const lineId = `l0000001-0000-0000-0000-000000000001`;
-
-      // Upsert product line
-      await supabase.from("product_lines").upsert({
-        id: lineId,
-        brand_id: brandId,
-        title: "Craftsman Master Series",
-        description: "Official workshop batches and serialized pieces.",
-      } as any);
+      const lineId = brandProductLines.get(brandId) || brandId.replace(/^b/, "l");
 
       // Upsert product
       const { error: prodErr } = await supabase.from("products").upsert({

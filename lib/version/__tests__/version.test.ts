@@ -559,6 +559,15 @@ describe("Minimum Supported Version Handshake & Lifecycle Events", () => {
     expect(res.message).toBe("Gateway upgraded to v2");
   });
 
+  it("rejects newer incompatible major client versions with force_update_required", () => {
+    // Gateway is 1.5.0, minSupported is 1.1.0, client is 2.0.0
+    const result = validateClientVersion("2.0.0", gatewayConfig);
+    expect(result.status).toBe("force_update_required");
+    expect(result.compatible).toBe(false);
+    expect(result.actionRequired).toBe(true);
+    expect(result.message).toContain("incompatible with gateway major version");
+  });
+
   it("VersionLifecycleEventEmitter dispatches typed events", () => {
     const emitter = new VersionLifecycleEventEmitter();
 
