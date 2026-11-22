@@ -15,6 +15,10 @@ import {
   Layers,
 } from "lucide-react";
 import { MonoValue } from "@/components/ui/MonoValue";
+import {
+  DropPresetsSection,
+  type DropPresetConfig,
+} from "@/components/admin/DropPresetsSection";
 import type { InventoryItem } from "@/lib/mock/adminData";
 import type { ChipTier } from "@/lib/mock/shopData";
 import { cn } from "@/lib/utils";
@@ -23,6 +27,7 @@ interface ProductRegistrationDrawerProps {
   isOpen: boolean;
   onClose: () => void;
   onRegisterProduct: (product: Omit<InventoryItem, "id" | "lastUpdated">) => void;
+  initialDraft?: Partial<InventoryItem> | null;
 }
 
 const HARDWARE_TIERS: {
@@ -63,18 +68,42 @@ export function ProductRegistrationDrawer({
   isOpen,
   onClose,
   onRegisterProduct,
+  initialDraft,
 }: ProductRegistrationDrawerProps) {
   // Form State
-  const [sku, setSku] = useState("FC-BLT-K2-009");
-  const [title, setTitle] = useState("");
-  const [stockQty, setStockQty] = useState(24);
-  const [priceUsd, setPriceUsd] = useState(48.0);
-  const [royaltyBps, setRoyaltyBps] = useState(750); // 7.5%
-  const [chipTier, setChipTier] = useState<ChipTier>("NTAG424_DNA");
-  const [coSignRequired, setCoSignRequired] = useState(true);
+  const [sku, setSku] = useState(() => initialDraft?.sku ?? "FC-BLT-K2-009");
+  const [title, setTitle] = useState(() => initialDraft?.title ?? "");
+  const [stockQty, setStockQty] = useState(() => initialDraft?.maxStock ?? initialDraft?.stock ?? 24);
+  const [priceUsd, setPriceUsd] = useState(() =>
+    initialDraft?.priceCents !== undefined ? initialDraft.priceCents / 100 : 48.0,
+  );
+  const [royaltyBps, setRoyaltyBps] = useState(() => initialDraft?.royaltyBps ?? 750); // 7.5%
+  const [chipTier, setChipTier] = useState<ChipTier>(() => initialDraft?.chipTier ?? "NTAG424_DNA");
+  const [coSignRequired, setCoSignRequired] = useState(() => initialDraft?.coSignRequired ?? true);
+  const [selectedPresetId, setSelectedPresetId] = useState<string | null>(null);
+  const [versionTag, setVersionTag] = useState(() => initialDraft?.versionTag ?? "v1.0");
+  const [artistAttribution, setArtistAttribution] = useState(() => initialDraft?.artistAttribution ?? "");
+  const [parentSku, setParentSku] = useState<string | null>(() => initialDraft?.parentSku ?? null);
+  const [frontChestStamp, setFrontChestStamp] = useState(() => initialDraft?.frontChestStamp ?? "");
+  const [backStatement, setBackStatement] = useState(() => initialDraft?.backStatement ?? "");
+  const [auctionEnabled, setAuctionEnabled] = useState(() => Boolean(initialDraft?.auctionEnabled));
+  const [durationHours, setDurationHours] = useState<number | null>(() => initialDraft?.durationHours ?? null);
 
   // Simulation State
   const [simulatedResalePrice, setSimulatedResalePrice] = useState(100);
+
+  const handleApplyPreset = (preset: DropPresetConfig) => {
+    setSelectedPresetId(preset.id);
+    setPriceUsd(preset.priceUsd);
+    setChipTier(preset.chipTier);
+    setStockQty(preset.stockQty);
+    setCoSignRequired(preset.coSignRequired);
+    setAuctionEnabled(preset.auctionEnabled);
+    setDurationHours(preset.durationHours);
+    if (!title.trim()) {
+      setTitle(preset.defaultTitlePrefix + "Batch 001");
+    }
+  };
 
   // Close on Escape key
   useEffect(() => {
@@ -108,23 +137,55 @@ export function ProductRegistrationDrawer({
   const makerNetPayout = creatorRoyaltyAmount - protocolCut;
   const resellerGrossPayout = simulatedResalePrice - creatorRoyaltyAmount;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim() || !sku.trim()) return;
 
-    onRegisterProduct({
+    const payload: Omit<InventoryItem, "id" | "lastUpdated"> = {
       sku: sku.trim().toUpperCase(),
       title: title.trim(),
       stock: Number(stockQty) || 0,
       maxStock: Number(stockQty) || 24,
+      priceCents: Math.round((Number(priceUsd) || 25) * 100),
       royaltyBps,
       chipTier,
       coSignRequired,
       status: Number(stockQty) > 0 ? "IN_STOCK" : "OUT_OF_STOCK",
-    });
+      versionTag,
+      artistAttribution: artistAttribution.trim() || undefined,
+      parentSku: parentSku || undefined,
+      frontChestStamp: frontChestStamp.trim() || undefined,
+      backStatement: backStatement.trim() || undefined,
+      auctionEnabled,
+      durationHours,
+    };
+
+    try {
+      await fetch("/api/admin/inventory", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...payload,
+          description: backStatement.trim() || frontChestStamp.trim() || "",
+          makerNotes: artistAttribution.trim()
+            ? `${versionTag} · ${artistAttribution.trim()}`
+            : versionTag,
+        }),
+      });
+    } catch {
+      // Offline / unit test fallback handled locally
+    }
+
+    onRegisterProduct(payload);
 
     // Reset & close
     setTitle("");
+    setSelectedPresetId(null);
+    setVersionTag("v1.0");
+    setArtistAttribution("");
+    setParentSku(null);
+    setFrontChestStamp("");
+    setBackStatement("");
     handleGenerateSku();
     onClose();
   };
@@ -177,6 +238,22 @@ export function ProductRegistrationDrawer({
 
             {/* Scrollable Form Body */}
             <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-6">
+              {/* Quick-Start Drop Presets & Pure-Type Generator */}
+              <DropPresetsSection
+                selectedPresetId={selectedPresetId}
+                onApplyPreset={handleApplyPreset}
+                versionTag={versionTag}
+                parentSku={parentSku}
+                artistAttribution={artistAttribution}
+                onArtistAttributionChange={setArtistAttribution}
+                frontChestStamp={frontChestStamp}
+                onFrontChestStampChange={setFrontChestStamp}
+                backStatement={backStatement}
+                onBackStatementChange={setBackStatement}
+              />
+
+              <div className="h-px bg-white/8" />
+
               {/* Section 1: Core Product Details */}
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
