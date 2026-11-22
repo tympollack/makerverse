@@ -1,6 +1,7 @@
 // lib/db/admin.ts
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import {
+  IS_MOCK_ENABLED,
   TELEMETRY,
   INVENTORY_ITEMS,
   NFC_BATCH_QUEUE,
@@ -59,7 +60,7 @@ export async function getAdminInventory(): Promise<InventoryItem[]> {
       console.warn("[getAdminInventory] Inventory fallback:", err);
     }
   }
-  return INVENTORY_ITEMS;
+  return IS_MOCK_ENABLED ? INVENTORY_ITEMS : [];
 }
 
 export async function getAdminNfcBatchQueue(): Promise<NfcChipEntry[]> {
@@ -99,7 +100,7 @@ export async function getAdminNfcBatchQueue(): Promise<NfcChipEntry[]> {
       console.warn("[getAdminNfcBatchQueue] Queue fallback:", err);
     }
   }
-  return NFC_BATCH_QUEUE;
+  return IS_MOCK_ENABLED ? NFC_BATCH_QUEUE : [];
 }
 
 export async function getAdminActiveHolds(): Promise<HoldEntry[]> {
@@ -146,7 +147,7 @@ export async function getAdminActiveHolds(): Promise<HoldEntry[]> {
       console.warn("[getAdminActiveHolds] Holds fallback:", err);
     }
   }
-  return ACTIVE_HOLDS;
+  return IS_MOCK_ENABLED ? ACTIVE_HOLDS : [];
 }
 
 export async function getAdminPOSTransactions(): Promise<POSTransaction[]> {
@@ -176,7 +177,7 @@ export async function getAdminPOSTransactions(): Promise<POSTransaction[]> {
       console.warn("[getAdminPOSTransactions] POS fallback:", err);
     }
   }
-  return POS_TRANSACTIONS;
+  return IS_MOCK_ENABLED ? POS_TRANSACTIONS : [];
 }
 
 export async function getAdminInstallations(): Promise<BoothInstallation[]> {
@@ -206,7 +207,7 @@ export async function getAdminInstallations(): Promise<BoothInstallation[]> {
       console.warn("[getAdminInstallations] Installations fallback:", err);
     }
   }
-  return MOCK_INSTALLATIONS;
+  return IS_MOCK_ENABLED ? MOCK_INSTALLATIONS : [];
 }
 
 export async function getAdminGuestbook(): Promise<GuestbookEntry[]> {
@@ -236,7 +237,7 @@ export async function getAdminGuestbook(): Promise<GuestbookEntry[]> {
       console.warn("[getAdminGuestbook] Guestbook fallback:", err);
     }
   }
-  return INITIAL_GUESTBOOK_ENTRIES;
+  return IS_MOCK_ENABLED ? INITIAL_GUESTBOOK_ENTRIES : [];
 }
 
 export async function getAdminRaffles(): Promise<RaffleAttempt[]> {
@@ -264,5 +265,5 @@ export async function getAdminRaffles(): Promise<RaffleAttempt[]> {
       console.warn("[getAdminRaffles] Raffles fallback:", err);
     }
   }
-  return INITIAL_RAFFLE_ATTEMPTS;
+  return IS_MOCK_ENABLED ? INITIAL_RAFFLE_ATTEMPTS : [];
 }

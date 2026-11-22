@@ -1,6 +1,9 @@
 // lib/mock/shopData.ts
 // Real dataset definitions for the Makerverse storefronts
 
+export const IS_MOCK_ENABLED =
+  process.env.NODE_ENV !== "production" && process.env.NEXT_PUBLIC_USE_MOCKS === "true";
+
 export type ChipTier =
   | "QR_REGISTRY"
   | "NTAG213_SERIALIZED"
@@ -75,7 +78,24 @@ export interface ShoppablePost {
 
 // ─── Real Brand Passports ───────────────────────────────────────────────────
 
-export const BRAND_PASSPORT: BrandPassport = {
+const EMPTY_BRAND_PASSPORT: BrandPassport = {
+  id: "",
+  handle: "",
+  name: "",
+  bio: "",
+  avatarUrl: "",
+  bannerUrl: "",
+  isVerified: false,
+  ledgerAddress: "0x0000000000000000000000000000000000000000",
+  followerCount: 0,
+  productCount: 0,
+  totalRoyaltiesEarned: 0,
+  memberSince: "",
+  studioLocation: "",
+  tags: [],
+};
+
+const MOCK_BRAND_PASSPORT: BrandPassport = {
   id: "b0000001-0000-0000-0000-000000000001",
   handle: "forge-collective",
   name: "The Forge Collective",
@@ -92,8 +112,8 @@ export const BRAND_PASSPORT: BrandPassport = {
   tags: ["metalwork", "leather", "NFC-provenance", "EIP-2981", "handcrafted"],
 };
 
-export const ALL_BRANDS: BrandPassport[] = [
-  BRAND_PASSPORT,
+const MOCK_ALL_BRANDS: BrandPassport[] = [
+  MOCK_BRAND_PASSPORT,
   {
     id: "b0000002-0000-0000-0000-000000000002",
     handle: "timber-stone",
@@ -128,9 +148,15 @@ export const ALL_BRANDS: BrandPassport[] = [
   },
 ];
 
+export const BRAND_PASSPORT: BrandPassport = IS_MOCK_ENABLED
+  ? MOCK_BRAND_PASSPORT
+  : EMPTY_BRAND_PASSPORT;
+
+export const ALL_BRANDS: BrandPassport[] = IS_MOCK_ENABLED ? MOCK_ALL_BRANDS : [];
+
 // ─── Real Products ───────────────────────────────────────────────────────────
 
-export const PRODUCTS: Product[] = [
+const MOCK_PRODUCTS: Product[] = [
   {
     id: "prod_001",
     sku: "FC-BLT-K1-001",
@@ -394,9 +420,11 @@ export const PRODUCTS: Product[] = [
   },
 ];
 
+export const PRODUCTS: Product[] = IS_MOCK_ENABLED ? MOCK_PRODUCTS : [];
+
 // ─── Real Shoppable Spatial Posts ───────────────────────────────────────────
 
-export const SHOPPABLE_POSTS: ShoppablePost[] = [
+const MOCK_SHOPPABLE_POSTS: ShoppablePost[] = [
   {
     id: "post_001",
     brandId: "b0000001-0000-0000-0000-000000000001",
@@ -434,20 +462,25 @@ export const SHOPPABLE_POSTS: ShoppablePost[] = [
   },
 ];
 
+export const SHOPPABLE_POSTS: ShoppablePost[] = IS_MOCK_ENABLED ? MOCK_SHOPPABLE_POSTS : [];
+
 // ─── Helper Functions ────────────────────────────────────────────────────────
 
 export function getBrandByHandle(handle: string): BrandPassport | null {
+  if (!IS_MOCK_ENABLED) return null;
   const normalized = handle.toLowerCase().replace(/^@/, "");
   return ALL_BRANDS.find((b) => b.handle.toLowerCase() === normalized) || null;
 }
 
 export function getProductsByBrandHandle(handle: string): Product[] {
+  if (!IS_MOCK_ENABLED) return [];
   const brand = getBrandByHandle(handle);
   if (!brand) return [];
   return PRODUCTS.filter((p) => p.brandId === brand.id || p.brandHandle === brand.handle);
 }
 
 export function getPostsByBrandHandle(handle: string): ShoppablePost[] {
+  if (!IS_MOCK_ENABLED) return [];
   const brand = getBrandByHandle(handle);
   if (!brand) return [];
   return SHOPPABLE_POSTS.filter((p) => p.brandId === brand.id);

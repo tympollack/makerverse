@@ -6,12 +6,15 @@ import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 
 interface CountdownTimerProps {
-  /** Unix timestamp (ms) when the hold expires */
+  /** Unix timestamp (ms) when the hold expires or drop launches */
   expiresAt: number;
   /** Called when timer hits zero */
   onExpire?: () => void;
   className?: string;
   showMs?: boolean;
+  /** 'ttl' = MM:SS (default), 'drop' = DDd HH:MM:SS / HH:MM:SS */
+  format?: "ttl" | "drop";
+  expiredLabel?: string;
 }
 
 export function formatTTL(ms: number): string {
@@ -24,7 +27,28 @@ export function formatTTL(ms: number): string {
   return `${m}:${s}`;
 }
 
-export function CountdownTimer({ expiresAt, onExpire, className, showMs = false }: CountdownTimerProps) {
+export function formatDropCountdown(ms: number): string {
+  if (ms <= 0) return "00:00:00";
+  const totalSecs = Math.floor(ms / 1000);
+  const days = Math.floor(totalSecs / 86_400);
+  const hours = Math.floor((totalSecs % 86_400) / 3_600)
+    .toString()
+    .padStart(2, "0");
+  const mins = Math.floor((totalSecs % 3_600) / 60)
+    .toString()
+    .padStart(2, "0");
+  const secs = (totalSecs % 60).toString().padStart(2, "0");
+  return days > 0 ? `${days}d ${hours}:${mins}:${secs}` : `${hours}:${mins}:${secs}`;
+}
+
+export function CountdownTimer({
+  expiresAt,
+  onExpire,
+  className,
+  showMs = false,
+  format = "ttl",
+  expiredLabel = "EXPIRED",
+}: CountdownTimerProps) {
   const [remaining, setRemaining] = useState(() => Math.max(0, expiresAt - Date.now()));
   const expiredRef = useRef(false);
 
@@ -72,7 +96,11 @@ export function CountdownTimer({ expiresAt, onExpire, className, showMs = false 
           className,
         )}
       >
-        {isExpired ? "EXPIRED" : formatTTL(remaining)}
+        {isExpired
+          ? expiredLabel
+          : format === "drop"
+            ? formatDropCountdown(remaining)
+            : formatTTL(remaining)}
       </motion.span>
     </AnimatePresence>
   );

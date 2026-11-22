@@ -488,6 +488,141 @@ export interface MakerverseTables {
     };
     Relationships: [];
   };
+  pilot_applications: {
+    Row: {
+      id: string;
+      artist_brand_name: string;
+      medium_craft: string;
+      portfolio_handle: string;
+      email: string;
+      next_show_festival: string | null;
+      status: string;
+      created_at: string;
+    };
+    Insert: {
+      id?: string;
+      artist_brand_name: string;
+      medium_craft: string;
+      portfolio_handle: string;
+      email: string;
+      next_show_festival?: string | null;
+      status?: string;
+      created_at?: string;
+    };
+    Update: {
+      id?: string;
+      artist_brand_name?: string;
+      medium_craft?: string;
+      portfolio_handle?: string;
+      email?: string;
+      next_show_festival?: string | null;
+      status?: string;
+      created_at?: string;
+    };
+    Relationships: [];
+  };
+  product_batches: {
+    Row: {
+      id: string;
+      brand_id: string;
+      product_id: string | null;
+      parent_batch_id: string | null;
+      title: string;
+      sku: string | null;
+      batch_number: number;
+      is_published: boolean;
+      goes_live_at: string;
+      auto_retire_at: string | null;
+      version_tag: string;
+      is_public_teaser: boolean;
+      artist_attribution: string | null;
+      chip_tier: HardwareTier;
+      base_price_cents: number;
+      max_cap: number | null;
+      minted_count: number;
+      vanity_auction_enabled: boolean;
+      vanity_serials: Json;
+      metadata: Json;
+      created_at: string;
+      updated_at: string;
+    };
+    Insert: {
+      id?: string;
+      brand_id: string;
+      product_id?: string | null;
+      parent_batch_id?: string | null;
+      title: string;
+      sku?: string | null;
+      batch_number?: number;
+      is_published?: boolean;
+      goes_live_at?: string;
+      auto_retire_at?: string | null;
+      version_tag?: string;
+      is_public_teaser?: boolean;
+      artist_attribution?: string | null;
+      chip_tier?: HardwareTier;
+      base_price_cents?: number;
+      max_cap?: number | null;
+      minted_count?: number;
+      vanity_auction_enabled?: boolean;
+      vanity_serials?: Json;
+      metadata?: Json;
+      created_at?: string;
+      updated_at?: string;
+    };
+    Update: {
+      id?: string;
+      brand_id?: string;
+      product_id?: string | null;
+      parent_batch_id?: string | null;
+      title?: string;
+      sku?: string | null;
+      batch_number?: number;
+      is_published?: boolean;
+      goes_live_at?: string;
+      auto_retire_at?: string | null;
+      version_tag?: string;
+      is_public_teaser?: boolean;
+      artist_attribution?: string | null;
+      chip_tier?: HardwareTier;
+      base_price_cents?: number;
+      max_cap?: number | null;
+      minted_count?: number;
+      vanity_auction_enabled?: boolean;
+      vanity_serials?: Json;
+      metadata?: Json;
+      created_at?: string;
+      updated_at?: string;
+    };
+    Relationships: [];
+  };
+  drop_notify_subscriptions: {
+    Row: {
+      id: string;
+      batch_id: string;
+      user_id: string | null;
+      email: string | null;
+      verified: boolean;
+      created_at: string;
+    };
+    Insert: {
+      id?: string;
+      batch_id: string;
+      user_id?: string | null;
+      email?: string | null;
+      verified?: boolean;
+      created_at?: string;
+    };
+    Update: {
+      id?: string;
+      batch_id?: string;
+      user_id?: string | null;
+      email?: string | null;
+      verified?: boolean;
+      created_at?: string;
+    };
+    Relationships: [];
+  };
 }
 
 export interface MakerverseFunctions {
@@ -535,10 +670,19 @@ export interface MakerverseFunctions {
   };
 }
 
+export interface MakerverseViews {
+  v_batch_lifecycle: {
+    Row: MakerverseTables["product_batches"]["Row"] & {
+      release_status: "DRAFT" | "SCHEDULED" | "LIVE" | "RETIRED";
+    };
+    Relationships: [];
+  };
+}
+
 export interface Database {
   makerverse: {
     Tables: MakerverseTables;
-    Views: Record<string, never>;
+    Views: MakerverseViews;
     Functions: MakerverseFunctions;
     Enums: Record<string, never>;
     CompositeTypes: Record<string, never>;

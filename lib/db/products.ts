@@ -1,6 +1,12 @@
 // lib/db/products.ts
 import { getSupabaseServerClient } from "@/lib/supabase/server";
-import { PRODUCTS, getProductsByBrandHandle, type Product, type ChipTier } from "@/lib/mock/shopData";
+import {
+  PRODUCTS,
+  IS_MOCK_ENABLED,
+  getProductsByBrandHandle,
+  type Product,
+  type ChipTier,
+} from "@/lib/mock/shopData";
 
 function mapHardwareTier(tier: string): ChipTier {
   if (tier === "NTAG424_DNA_CMAC" || tier === "NTAG424_DNA") return "NTAG424_DNA";
@@ -14,7 +20,9 @@ function mapHardwareTier(tier: string): ChipTier {
  */
 export async function getProducts(brandHandle?: string): Promise<Product[]> {
   const supabase = getSupabaseServerClient();
-  const normalized = (brandHandle || "forge-collective").toLowerCase().replace(/^@/, "");
+  const normalized = (brandHandle || (IS_MOCK_ENABLED ? "forge-collective" : ""))
+    .toLowerCase()
+    .replace(/^@/, "");
 
   if (supabase) {
     try {
@@ -66,7 +74,7 @@ export async function getProducts(brandHandle?: string): Promise<Product[]> {
             maxStock: p.max_stock || 24,
             demandSignals: 0,
             chipTier: mapHardwareTier(p.hardware_tier),
-            imageUrl: p.image_url || "/mock/keyring.jpg",
+            imageUrl: p.image_url || "",
             tags: ["craft", "staging"],
             materials: p.materials || [],
             isFollowed: false,
@@ -89,11 +97,11 @@ export async function getProducts(brandHandle?: string): Promise<Product[]> {
         console.warn("[getProducts] Database query error, falling back to real local dataset:", error.message);
       }
     } catch (err) {
-      console.warn("[getProducts] Falling back to real local dataset:", err);
+      console.warn("[getProducts] Database query error:", err);
     }
   }
 
-  return getProductsByBrandHandle(normalized);
+  return IS_MOCK_ENABLED ? getProductsByBrandHandle(normalized) : [];
 }
 
 /**
@@ -135,7 +143,7 @@ export async function getProductById(idOrSku: string): Promise<Product | null> {
             maxStock: data.max_stock || 24,
             demandSignals: 0,
             chipTier: mapHardwareTier(data.hardware_tier),
-            imageUrl: data.image_url || "/mock/keyring.jpg",
+            imageUrl: data.image_url || "",
             tags: ["craft", "staging"],
             materials: data.materials || [],
             isFollowed: false,
@@ -160,6 +168,7 @@ export async function getProductById(idOrSku: string): Promise<Product | null> {
     }
   }
 
+  if (!IS_MOCK_ENABLED) return null;
   const match = PRODUCTS.find((p) => p.id === idOrSku || p.sku === idOrSku);
   return match || null;
 }

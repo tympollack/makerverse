@@ -30,7 +30,7 @@ export async function POST(request: NextRequest) {
     if (!supabase) {
       return NextResponse.json(
         { error: "Database persistence not configured" },
-        { status: 503 }
+        { status: 503 },
       );
     }
 
@@ -42,9 +42,20 @@ export async function POST(request: NextRequest) {
       max_stock: body.maxStock || 24,
       hardware_tier: body.chipTier === "NTAG424_DNA" ? "NTAG424_DNA_CMAC" : (body.chipTier || "QR_REGISTRY"),
       secondary_royalty_pct: (body.royaltyBps || 750) / 100,
+      co_sign_required: Boolean(body.coSignRequired),
       materials: body.materials || [],
       description: body.description || "",
       maker_notes: body.makerNotes || "",
+      hardware_spec: {
+        versionTag: body.versionTag || "v1.0",
+        artistAttribution: body.artistAttribution || null,
+        parentSku: body.parentSku || null,
+        frontChestStamp: body.frontChestStamp || null,
+        backStatement: body.backStatement || null,
+        auctionEnabled: Boolean(body.auctionEnabled),
+        durationHours: body.durationHours ?? null,
+        uncapped: Boolean(body.uncapped),
+      },
       product_line_id: body.productLineId || "l0000001-0000-0000-0000-000000000001",
     } as any).select().single();
 
@@ -52,7 +63,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 400 });
     }
 
-    return NextResponse.json({ success: true, item: data });
+    return NextResponse.json({ success: true, persistedToDb: true, item: data });
   } catch (err: any) {
     return NextResponse.json({ error: err.message || "Failed to create SKU" }, { status: 500 });
   }
