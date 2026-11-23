@@ -65,10 +65,20 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Sync with Supabase staging database if connected (BUG_0001, BUG_0003)
+    // Sync hold ledger with Supabase staging database if connected.
+    // Redis is the single authoritative store for temporary reservation locks;
+    // products.stock_quantity is only decremented on order fulfillment so concurrent
+    // or expired holds never race on or strand physical database stock.
     const supabase = getSupabaseServiceRoleClient();
     if (supabase && holdResult.hold) {
       try {
+        const nowIso = new Date().toISOString();
+        await (supabase.from("cart_holds" as any) as any)
+          .update({ status: "EXPIRED_RELEASE", updated_at: nowIso })
+          .eq("product_id", productId)
+          .in("status", ["ACTIVE_HOLD", "PAYMENT_RETRYING"])
+          .lte("expires_at", nowIso);
+
         const { error: insertErr } = await supabase.from("cart_holds").insert({
           id: holdResult.hold.holdId,
           product_id: productId,
@@ -79,22 +89,10 @@ export async function POST(request: NextRequest) {
           idempotency_key: holdResult.hold.holdId,
         } as any);
 
-        let updateErr = null;
-        if (!insertErr) {
-          // Atomically decrement database stock so execute_hold_release restores the exact balance
-          const res = await (supabase.from("products" as any) as any)
-            .update({
-              stock_quantity: Math.max(0, product.stock - qty),
-              updated_at: new Date().toISOString(),
-            })
-            .eq("id", productId);
-          updateErr = res.error;
-        }
-
-        if (insertErr || updateErr) {
-          // Compensate: release Redis hold on DB write failure to maintain stock consistency
+        if (insertErr) {
+          // Compensate: release Redis hold on DB write failure to maintain hold consistency
           await releaseCartHold(holdResult.hold.holdId, "admin_override");
-          const errMsg = insertErr?.message || updateErr?.message || "Failed to persist hold";
+          const errMsg = insertErr.message || "Failed to persist hold";
           return NextResponse.json(
             { error: `Database persistence failed: ${errMsg}` },
             { status: 500 }

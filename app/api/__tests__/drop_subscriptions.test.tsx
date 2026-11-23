@@ -288,7 +288,105 @@ describe("TASK-MKR-DROP-SUBSCRIPTIONS-SCHEMA: Follow Actions, UI & Unsubscribe",
         target_id: batchId,
         is_active: true,
       },
-      { onConflict: "email,target_type,target_id" },
+      { onConflict: "email,target_type,target_id", ignoreDuplicates: true },
+    );
+  });
+
+  it("blocks anonymous shopper sessions from claiming ownership or reversing opt-outs", async () => {
+    const batchId = "66666666-6666-4666-8666-666666666666";
+    const upsertDropSub = vi.fn().mockReturnValue({
+      select: vi.fn().mockReturnValue({
+        maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+      }),
+    });
+    const upsertNotifySub = vi.fn().mockResolvedValue({ error: null });
+    const insertNotifySub = vi.fn().mockResolvedValue({ error: null });
+
+    mockGetServiceRoleClient.mockReturnValue({
+      auth: {
+        getUser: vi.fn().mockResolvedValue({
+          data: {
+            user: {
+              id: "anon-uuid-1234",
+              email: null,
+              is_anonymous: true,
+            },
+          },
+          error: null,
+        }),
+      },
+      from: vi.fn().mockImplementation((table: string) => {
+        if (table === "product_batches") {
+          return {
+            select: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                maybeSingle: vi.fn().mockResolvedValue({
+                  data: {
+                    id: batchId,
+                    is_published: true,
+                    is_public_teaser: true,
+                    goes_live_at: new Date(Date.now() + 3_600_000).toISOString(),
+                  },
+                  error: null,
+                }),
+              }),
+            }),
+          };
+        }
+        if (table === "drop_notify_subscriptions") return { insert: insertNotifySub };
+        if (table === "drop_subscriptions") {
+          return {
+            upsert: (row: unknown, opts: unknown) => {
+              upsertNotifySub(row, opts);
+              return upsertDropSub(row, opts);
+            },
+          };
+        }
+        return {};
+      }),
+    });
+
+    const anonUpsert = await upsertDropSubscription({
+      email: "victim@example.com",
+      targetType: "brand",
+      targetId: "b0000001-0000-0000-0000-000000000001",
+      authToken: "anon-jwt",
+    });
+    expect(anonUpsert.success).toBe(true);
+    expect(upsertNotifySub).toHaveBeenCalledWith(
+      expect.objectContaining({
+        email: "victim@example.com",
+        user_id: null,
+      }),
+      { onConflict: "email,target_type,target_id", ignoreDuplicates: true },
+    );
+
+    const anonDeactivate = await deactivateDropSubscription({
+      email: "victim@example.com",
+      targetType: "brand",
+      targetId: "b0000001-0000-0000-0000-000000000001",
+      authToken: "anon-jwt",
+    });
+    expect(anonDeactivate.success).toBe(false);
+    expect(anonDeactivate.requiresAuthOrEmailLink).toBe(true);
+
+    const notifyRes = await postDropNotify(
+      new NextRequest("http://localhost:3000/api/drops/notify", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          authorization: "Bearer anon-jwt",
+        },
+        body: JSON.stringify({ batchId, email: "victim@example.com" }),
+      }),
+    );
+    expect(notifyRes.status).toBe(200);
+    expect(upsertNotifySub).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        email: "victim@example.com",
+        user_id: null,
+      }),
+      { onConflict: "email,target_type,target_id", ignoreDuplicates: true },
     );
   });
 

@@ -16,7 +16,6 @@ const LEGACY_EXEMPTIONS = new Map([
   ['components/admin/POSTerminal.tsx', 1244],
   ['components/admin/HoldEngineMonitor.tsx', 1049],
   ['components/admin/BoothEngine.tsx', 1058],
-  ['lib/redis/holdEngine.ts', 1058],
 ]);
 
 const RULES = {

@@ -1,7 +1,7 @@
 // components/admin/InventoryManager.tsx
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Plus,
@@ -23,8 +23,10 @@ import { ProductRegistrationDrawer } from "@/components/admin/ProductRegistratio
 import { SkuMatrixTable } from "@/components/admin/SkuMatrixTable";
 import { BatchSettlementModal } from "@/components/admin/BatchSettlementModal";
 import { VersionReleaseBadge } from "@/components/admin/VersionReleaseBadge";
-import { INVENTORY_ITEMS, NFC_BATCH_QUEUE } from "@/lib/mock/adminData";
+import { IS_MOCK_ENABLED, INVENTORY_ITEMS, NFC_BATCH_QUEUE } from "@/lib/mock/adminData";
 import type { InventoryItem, NfcChipEntry, ChipLockState } from "@/lib/mock/adminData";
+import type { BatchOrderRow } from "@/lib/utils/exportBatchManifest";
+import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 
 // ─── Chip Encoder Row ─────────────────────────────────────────────────────────
@@ -261,18 +263,56 @@ function ChipEncoderCard({
 export function InventoryManager({
   initialItems = INVENTORY_ITEMS,
   initialChips = NFC_BATCH_QUEUE,
+  initialOrdersBySku = {},
 }: {
   initialItems?: InventoryItem[];
   initialChips?: NfcChipEntry[];
+  initialOrdersBySku?: Record<string, BatchOrderRow[]>;
 } = {}) {
   const [inventory, setInventory] = useState<InventoryItem[]>(initialItems);
   const [chipQueue, setChipQueue] = useState<NfcChipEntry[]>(initialChips);
+  const [ordersBySku, setOrdersBySku] = useState<Record<string, BatchOrderRow[]>>(
+    initialOrdersBySku,
+  );
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [draftKey, setDraftKey] = useState(0);
   const [draftTemplate, setDraftTemplate] = useState<Partial<InventoryItem> | null>(null);
   const [manifestItem, setManifestItem] = useState<InventoryItem | null>(null);
   const [isEncodingBatch, setIsEncodingBatch] = useState(false);
   const [encodeSuccessNotice, setEncodeSuccessNotice] = useState(false);
+
+  useEffect(() => {
+    const sb = getSupabaseBrowserClient();
+    if (!sb || typeof fetch !== "function") return;
+
+    let active = true;
+    async function hydrateAuthenticatedInventory() {
+      try {
+        const { data } = await sb!.auth.getSession();
+        const token = data?.session?.access_token;
+        if (!token || !active) return;
+
+        const res = await fetch("/api/admin/inventory?includeOrders=1", {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok || !active) return;
+        const payload = await res.json();
+        if (Array.isArray(payload?.items) && payload.items.length > 0) {
+          setInventory(payload.items);
+        }
+        if (payload?.ordersBySku && typeof payload.ordersBySku === "object") {
+          setOrdersBySku(payload.ordersBySku);
+        }
+      } catch {
+        // Retain SSR initialItems/initialOrdersBySku if refresh fails
+      }
+    }
+
+    void hydrateAuthenticatedInventory();
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const handleOpenFreshRegister = () => {
     setDraftTemplate(null);
@@ -609,6 +649,12 @@ export function InventoryManager({
       <BatchSettlementModal
         item={manifestItem}
         chips={chipQueue}
+        realOrders={
+          manifestItem
+            ? ordersBySku[manifestItem.sku.toUpperCase()] ??
+              (IS_MOCK_ENABLED ? undefined : [])
+            : undefined
+        }
         onClose={() => setManifestItem(null)}
       />
     </div>

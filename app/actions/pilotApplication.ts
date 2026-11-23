@@ -2,6 +2,7 @@
 "use server";
 
 import { getSupabaseServiceRoleClient, getSupabaseServerClient } from "@/lib/supabase/server";
+import { IS_MOCK_ENABLED } from "@/lib/mock/adminData";
 
 export interface PilotApplicationInput {
   artistBrandName: string;
@@ -81,8 +82,26 @@ export async function submitPilotApplication(
         message: `Founding Maker application registered for ${artistBrandName}. Our studio team will reach out to ${email}.`,
       };
     } catch (err) {
-      console.warn("[submitPilotApplication] Fallback queue confirmation:", err);
+      const errMsg = err instanceof Error ? err.message : "Database request failed";
+      console.warn("[submitPilotApplication] DB insert exception:", errMsg);
+      return {
+        success: false,
+        persistedToDb: false,
+        applicationId: "",
+        error: errMsg,
+        message: "Unable to save your application right now. Please try again.",
+      };
     }
+  }
+
+  if (!IS_MOCK_ENABLED) {
+    return {
+      success: false,
+      persistedToDb: false,
+      applicationId: "",
+      error: "STORAGE_UNAVAILABLE",
+      message: "Application storage is currently unavailable. Please try again shortly.",
+    };
   }
 
   return {

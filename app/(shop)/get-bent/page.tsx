@@ -29,25 +29,62 @@ export default function GetBentFlagshipDropPage() {
   const [totalMinted, setTotalMinted] = useState<number>(114);
   const [topBidDollars, setTopBidDollars] = useState<number>(69);
   const [activeBatch, setActiveBatch] = useState<ProductBatch | null>(null);
+  const [catalogProductId, setCatalogProductId] = useState<string | null>(null);
+  const [liveBatchFallback, setLiveBatchFallback] = useState<{
+    productId?: string | null;
+    sku?: string;
+  } | null>(null);
 
   useEffect(() => {
     const batchParam =
       typeof window !== "undefined"
         ? new URLSearchParams(window.location.search).get("batch")
         : null;
-    if (!batchParam) return;
 
     let active = true;
-    fetchActiveBatchByParam("get-bent", batchParam).then((matched) => {
-      if (!active || !matched) return;
-      setActiveBatch(matched);
-      if (typeof matched.mintedCount === "number" && matched.mintedCount > 0) {
-        setTotalMinted(matched.mintedCount);
-      }
-      if (typeof matched.metadata?.topBidDollars === "number") {
-        setTopBidDollars(matched.metadata.topBidDollars);
-      }
-    });
+    if (batchParam) {
+      fetchActiveBatchByParam("get-bent", batchParam).then((matched) => {
+        if (!active || !matched) return;
+        setActiveBatch(matched);
+        if (typeof matched.mintedCount === "number" && matched.mintedCount > 0) {
+          setTotalMinted(matched.mintedCount);
+        }
+        if (typeof matched.metadata?.topBidDollars === "number") {
+          setTopBidDollars(matched.metadata.topBidDollars);
+        }
+      });
+    } else if (typeof fetch === "function") {
+      fetch("/api/drops?brand=get-bent&mode=live")
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data) => {
+          if (!active || !Array.isArray(data?.batches) || data.batches.length === 0) return;
+          const live = data.batches[0] as ProductBatch;
+          setLiveBatchFallback({ productId: live.productId, sku: live.sku });
+        })
+        .catch(() => {
+          // Best-effort lookup
+        });
+    }
+
+    if (typeof fetch === "function") {
+      fetch("/api/products?brand=get-bent")
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data) => {
+          if (!active || !Array.isArray(data?.products) || data.products.length === 0) return;
+          const targetSku = batchParam?.toUpperCase();
+          const matched =
+            (targetSku
+              ? data.products.find((p: { sku?: string }) => p.sku?.toUpperCase() === targetSku)
+              : null) || data.products[0];
+          if (matched?.id) {
+            setCatalogProductId(matched.id);
+          }
+        })
+        .catch(() => {
+          // Best-effort lookup
+        });
+    }
+
     return () => {
       active = false;
     };
@@ -190,6 +227,12 @@ export default function GetBentFlagshipDropPage() {
               onUpdateTopBid={(bid) => setTopBidDollars(bid)}
               startsAtMs={activeStartsMs}
               cutoffMs={activeCutoffMs}
+              productId={
+                activeBatch?.productId ||
+                liveBatchFallback?.productId ||
+                catalogProductId
+              }
+              batchSku={activeBatch?.sku || liveBatchFallback?.sku || "GB-BF-001"}
             />
           </div>
         </section>

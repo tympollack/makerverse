@@ -1,6 +1,6 @@
 // app/api/admin/inventory/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { getAdminInventory } from "@/lib/db/admin";
+import { getAdminBatchOrdersMap, getAdminInventory } from "@/lib/db/admin";
 import { getSupabaseServiceRoleClient } from "@/lib/supabase/server";
 import { verifyAdminAuth } from "@/lib/auth/adminAuth";
 
@@ -8,6 +8,15 @@ export async function GET(request: NextRequest) {
   const auth = await verifyAdminAuth(request);
   if (!auth.authorized) {
     return NextResponse.json({ error: auth.error }, { status: auth.status || 401 });
+  }
+
+  const includeOrders = request.nextUrl.searchParams.get("includeOrders") === "1";
+  if (includeOrders) {
+    const [inventory, ordersBySku] = await Promise.all([
+      getAdminInventory(),
+      getAdminBatchOrdersMap(),
+    ]);
+    return NextResponse.json({ items: inventory, ordersBySku });
   }
 
   const inventory = await getAdminInventory();

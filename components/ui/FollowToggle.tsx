@@ -168,9 +168,15 @@ export function FollowToggle({
     if (sb) {
       try {
         const { data } = await sb.auth.getSession();
-        accessToken = data?.session?.access_token;
-        if (data?.session?.user?.email) {
-          sessionEmail = data.session.user.email.trim().toLowerCase();
+        const sessionUser = data?.session?.user;
+        const hasVerifiedEmailSession = Boolean(
+          data?.session?.access_token &&
+            sessionUser?.email &&
+            !sessionUser?.is_anonymous,
+        );
+        if (hasVerifiedEmailSession) {
+          accessToken = data?.session?.access_token;
+          sessionEmail = sessionUser!.email!.trim().toLowerCase();
         }
       } catch {
         // Non-blocking fallback to guest flow

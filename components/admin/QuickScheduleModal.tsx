@@ -8,11 +8,19 @@ import type { ProductBatch } from "@/lib/drops/lifecycle";
 import type { ChipTier } from "@/lib/mock/shopData";
 import { cn } from "@/lib/utils";
 
+interface ScheduleBrandOption {
+  id: string;
+  handle: string;
+  name: string;
+}
+
 interface QuickScheduleModalProps {
   isOpen: boolean;
   onClose: () => void;
   selectedDateIso: string; // YYYY-MM-DD
   editingBatch?: ProductBatch | null;
+  availableBrands?: ScheduleBrandOption[];
+  defaultBrandHandle?: string;
   onSave: (payload: {
     batchId?: string;
     title: string;
@@ -28,6 +36,8 @@ interface QuickScheduleModalProps {
   }) => Promise<void>;
 }
 
+type DurationPresetId = "24h" | "72h" | "7d" | "open" | "custom";
+
 const DURATION_PRESETS = [
   { id: "24h", label: "24hr Drop", hours: 24 },
   { id: "72h", label: "72hr Drop", hours: 72 },
@@ -42,15 +52,15 @@ function toLocalDatetimeInput(isoOrDate: Date | string): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
-function getInitialDurationPreset(editingBatch?: ProductBatch | null): "24h" | "72h" | "7d" | "open" {
+function getInitialDurationPreset(editingBatch?: ProductBatch | null): DurationPresetId {
   if (!editingBatch) return "24h";
   if (!editingBatch.autoRetireAt) return "open";
-  const diffHrs = Math.round(
-    (Date.parse(editingBatch.autoRetireAt) - Date.parse(editingBatch.goesLiveAt)) / 3_600_000,
-  );
-  if (diffHrs >= 160) return "7d";
-  if (diffHrs >= 68) return "72h";
-  return "24h";
+  const diffMs = Date.parse(editingBatch.autoRetireAt) - Date.parse(editingBatch.goesLiveAt);
+  if (!Number.isFinite(diffMs) || diffMs <= 0) return "custom";
+  if (Math.abs(diffMs - 24 * 3_600_000) < 60_000) return "24h";
+  if (Math.abs(diffMs - 72 * 3_600_000) < 60_000) return "72h";
+  if (Math.abs(diffMs - 168 * 3_600_000) < 60_000) return "7d";
+  return "custom";
 }
 
 export function QuickScheduleModal({
@@ -58,15 +68,28 @@ export function QuickScheduleModal({
   onClose,
   selectedDateIso,
   editingBatch,
+  availableBrands = [],
+  defaultBrandHandle,
   onSave,
 }: QuickScheduleModalProps) {
   const [title, setTitle] = useState(() => editingBatch?.title ?? "");
   const [sku, setSku] = useState(() => editingBatch?.sku ?? "MKR-DROP-001");
-  const [brandHandle] = useState(() => editingBatch?.brandHandle ?? "get-bent");
-  const [startLocal, setStartLocal] = useState(() =>
+  const [brandHandle, setBrandHandle] = useState(
+    () =>
+      editingBatch?.brandHandle ??
+      defaultBrandHandle ??
+      availableBrands[0]?.handle ??
+      "get-bent",
+  );
+  const [initialStartLocal] = useState(() =>
     editingBatch ? toLocalDatetimeInput(editingBatch.goesLiveAt) : `${selectedDateIso}T12:00`,
   );
-  const [durationPreset, setDurationPreset] = useState<"24h" | "72h" | "7d" | "open">(() =>
+  const [startLocal, setStartLocal] = useState(() => initialStartLocal);
+  const [initialRetireLocal] = useState(() =>
+    editingBatch?.autoRetireAt ? toLocalDatetimeInput(editingBatch.autoRetireAt) : "",
+  );
+  const [customRetireLocal, setCustomRetireLocal] = useState(() => initialRetireLocal);
+  const [durationPreset, setDurationPreset] = useState<DurationPresetId>(() =>
     getInitialDurationPreset(editingBatch),
   );
   const [versionTag, setVersionTag] = useState(() => editingBatch?.versionTag ?? "v1.0");
@@ -86,8 +109,28 @@ export function QuickScheduleModal({
   };
 
   const computeAutoRetireIso = (): string | null => {
+    if (durationPreset === "custom") {
+      if (
+        editingBatch?.autoRetireAt &&
+        customRetireLocal === initialRetireLocal &&
+        startLocal === initialStartLocal
+      ) {
+        return editingBatch.autoRetireAt;
+      }
+      if (!customRetireLocal) return null;
+      const customMs = Date.parse(customRetireLocal);
+      return Number.isFinite(customMs) ? new Date(customMs).toISOString() : null;
+    }
+
     const preset = DURATION_PRESETS.find((p) => p.id === durationPreset);
     if (!preset || preset.hours === null) return null;
+    if (
+      editingBatch?.autoRetireAt &&
+      startLocal === initialStartLocal &&
+      durationPreset === getInitialDurationPreset(editingBatch)
+    ) {
+      return editingBatch.autoRetireAt;
+    }
     const startMs = Date.parse(startLocal);
     if (!Number.isFinite(startMs)) return null;
     return new Date(startMs + preset.hours * 3_600_000).toISOString();
@@ -99,9 +142,24 @@ export function QuickScheduleModal({
       setErrorMsg("Drop title is required.");
       return;
     }
+    const normalizedBrand = brandHandle.trim().toLowerCase().replace(/^@/, "");
+    if (!normalizedBrand) {
+      setErrorMsg("Brand handle is required.");
+      return;
+    }
     const startMs = Date.parse(startLocal);
     if (!Number.isFinite(startMs)) {
       setErrorMsg("Valid launch date & time required.");
+      return;
+    }
+
+    const computedRetireIso = computeAutoRetireIso();
+    if (durationPreset === "custom" && !computedRetireIso) {
+      setErrorMsg("Valid closing date & time required for custom window.");
+      return;
+    }
+    if (computedRetireIso && Date.parse(computedRetireIso) <= startMs) {
+      setErrorMsg("Closing timestamp must be after launch timestamp.");
       return;
     }
 
@@ -112,9 +170,12 @@ export function QuickScheduleModal({
         batchId: editingBatch?.id,
         title: title.trim(),
         sku: sku.trim() || `MKR-${Date.now().toString(36).slice(-4).toUpperCase()}`,
-        brandHandle,
-        goesLiveAt: new Date(startMs).toISOString(),
-        autoRetireAt: computeAutoRetireIso(),
+        brandHandle: normalizedBrand,
+        goesLiveAt:
+          editingBatch?.goesLiveAt && startLocal === initialStartLocal
+            ? editingBatch.goesLiveAt
+            : new Date(startMs).toISOString(),
+        autoRetireAt: computedRetireIso,
         versionTag,
         isPublicTeaser,
         isPublished,
@@ -147,6 +208,40 @@ export function QuickScheduleModal({
             {errorMsg}
           </div>
         )}
+
+        <div className="space-y-1">
+          <label htmlFor="sched-brand" className="font-mono text-[11px] text-white/70">
+            Storefront Brand Handle
+          </label>
+          {availableBrands.length > 0 ? (
+            <select
+              id="sched-brand"
+              value={brandHandle}
+              disabled={Boolean(editingBatch)}
+              onChange={(e) => setBrandHandle(e.target.value)}
+              className="w-full bg-[#1C1C1C] border border-white/10 rounded-lg px-3 py-2 font-mono text-xs text-white disabled:opacity-60 focus:outline-none focus:border-[#CC5500]"
+            >
+              {!availableBrands.some((b) => b.handle === brandHandle) && (
+                <option value={brandHandle}>@{brandHandle}</option>
+              )}
+              {availableBrands.map((b) => (
+                <option key={b.id} value={b.handle}>
+                  {b.name} (@{b.handle})
+                </option>
+              ))}
+            </select>
+          ) : (
+            <input
+              id="sched-brand"
+              type="text"
+              value={brandHandle}
+              disabled={Boolean(editingBatch)}
+              onChange={(e) => setBrandHandle(e.target.value)}
+              placeholder="your-brand-slug"
+              className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 font-mono text-xs text-white disabled:opacity-60 focus:outline-none focus:border-[#CC5500]"
+            />
+          )}
+        </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <div className="sm:col-span-2 space-y-1">
@@ -224,7 +319,7 @@ export function QuickScheduleModal({
           <span className="font-mono text-[11px] text-white/70 block">
             Release Window Duration (auto_retire_at)
           </span>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
             {DURATION_PRESETS.map((preset) => (
               <button
                 key={preset.id}
@@ -240,7 +335,43 @@ export function QuickScheduleModal({
                 {preset.label}
               </button>
             ))}
+            <button
+              type="button"
+              onClick={() => {
+                if (!customRetireLocal) {
+                  const baseMs = Date.parse(startLocal);
+                  setCustomRetireLocal(
+                    Number.isFinite(baseMs)
+                      ? toLocalDatetimeInput(new Date(baseMs + 24 * 3_600_000))
+                      : "",
+                  );
+                }
+                setDurationPreset("custom");
+              }}
+              className={cn(
+                "px-3 py-2 rounded-lg border font-mono text-xs transition-all cursor-pointer",
+                durationPreset === "custom"
+                  ? "bg-[#CC5500]/20 border-[#CC5500] text-orange-200 font-bold"
+                  : "bg-white/5 border-white/10 text-white/60 hover:text-white",
+              )}
+            >
+              Custom
+            </button>
           </div>
+          {durationPreset === "custom" && (
+            <div className="pt-1.5 space-y-1">
+              <label htmlFor="sched-retire" className="font-mono text-[10px] text-white/60 block">
+                Closing Timestamp (auto_retire_at)
+              </label>
+              <input
+                id="sched-retire"
+                type="datetime-local"
+                value={customRetireLocal}
+                onChange={(e) => setCustomRetireLocal(e.target.value)}
+                className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 font-mono text-xs text-white focus:outline-none focus:border-[#CC5500]"
+              />
+            </div>
+          )}
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">

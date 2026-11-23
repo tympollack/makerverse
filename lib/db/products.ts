@@ -114,20 +114,30 @@ export async function getProductById(idOrSku: string): Promise<Product | null> {
 
   if (supabase) {
     try {
-      // 1. Query by product ID first regardless of ID format (e.g. UUID or bundled prod_001)
-      let { data, error } = await (supabase.from("products" as any) as any)
-        .select("*")
-        .eq("id", idOrSku)
-        .maybeSingle();
+      // 1. Query by product ID first when input is UUID-compatible or in mock/test lookups
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(idOrSku);
+      let data: any = null;
+      let error: any = null;
 
-      // 2. Fallback to SKU query if no product matches by ID
-      if (!error && !data) {
+      if (isUuid || idOrSku.startsWith("prod_")) {
+        const idRes = await (supabase.from("products" as any) as any)
+          .select("*")
+          .eq("id", idOrSku)
+          .maybeSingle();
+        data = idRes.data;
+        error = idRes.error;
+      }
+
+      // 2. Fallback to SKU query if no product matches by ID (or ID was a SKU string)
+      if (!data) {
         const skuRes = await (supabase.from("products" as any) as any)
           .select("*")
           .eq("sku", idOrSku)
           .maybeSingle();
-        data = skuRes.data;
-        error = skuRes.error;
+        if (!skuRes.error || skuRes.data) {
+          data = skuRes.data;
+          error = skuRes.error;
+        }
       }
 
       if (!error) {
