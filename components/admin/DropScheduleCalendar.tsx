@@ -103,6 +103,7 @@ export function DropScheduleCalendar({
 }) {
   const [batches, setBatches] = useState<ProductBatch[]>(initialBatches);
   const [availableBrands, setAvailableBrands] = useState<ScheduleBrandOption[]>(initialBrands);
+  const [brandAuthChecked, setBrandAuthChecked] = useState(false);
   const [viewMode, setViewMode] = useState<"month" | "2week">("month");
   const [anchorDate, setAnchorDate] = useState<Date>(() => new Date());
   const [modalOpen, setModalOpen] = useState(false);
@@ -119,9 +120,10 @@ export function DropScheduleCalendar({
         const { data } = await sb!.auth.getSession();
         const token = data?.session?.access_token;
         if (!token || !active) return;
-        const owned = await getVendorAuthorizedBrands({ authToken: token });
-        if (active && Array.isArray(owned) && owned.length > 0) {
-          setAvailableBrands(owned);
+        const result = await getVendorAuthorizedBrands({ authToken: token });
+        if (active && result.authorized) {
+          setAvailableBrands(result.brands);
+          setBrandAuthChecked(true);
         }
       } catch {
         // Retain initialBrands fallback
@@ -688,8 +690,11 @@ export function DropScheduleCalendar({
         selectedDateIso={selectedDateIso}
         editingBatch={editingBatch}
         availableBrands={availableBrands}
+        brandAuthChecked={brandAuthChecked}
         defaultBrandHandle={
-          availableBrands[0]?.handle || initialBatches[0]?.brandHandle || "get-bent"
+          brandAuthChecked && availableBrands.length === 0
+            ? ""
+            : availableBrands[0]?.handle || initialBatches[0]?.brandHandle || "get-bent"
         }
         onSave={handleSaveBatch}
       />

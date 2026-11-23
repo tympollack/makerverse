@@ -58,14 +58,18 @@ export function UpcomingDropCard({ batch, onUnlock }: UpcomingDropCardProps) {
         body: JSON.stringify({ batchId: batch.id, email }),
       });
       const data = await res.json().catch(() => ({}));
-      if (res.ok && data.subscribed) {
+      if (res.ok && (data.subscribed || data.preservedExistingPreference)) {
         setNotified(true);
-        setNotifyCount((c) => c + 1);
+        if (data.subscribed) {
+          setNotifyCount((c) => c + 1);
+        }
         setShowEmailPrompt(false);
         setStatusNote(
-          data.persistedToDb
-            ? `Launch alert saved for ${email}.`
-            : `Preview alert armed for ${email}.`,
+          !data.persistedToDb
+            ? `Preview alert armed for ${email}.`
+            : data.subscribed
+              ? `Launch alert saved for ${email}.`
+              : `Alert request recorded for ${email}. Any prior opt-out preference remains preserved.`,
         );
       } else {
         setErrorNote(data.error || "Unable to register launch alert. Please retry.");

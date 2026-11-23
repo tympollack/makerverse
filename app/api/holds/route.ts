@@ -48,6 +48,49 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const supabase = getSupabaseServiceRoleClient();
+    const nowIso = new Date().toISOString();
+
+    if (supabase) {
+      try {
+        await (supabase.from("cart_holds" as any) as any)
+          .update({ status: "EXPIRED_RELEASE", updated_at: nowIso })
+          .eq("product_id", productId)
+          .in("status", ["ACTIVE_HOLD", "PAYMENT_RETRYING"])
+          .lte("expires_at", nowIso);
+
+        // Enforce cross-worker reservation capacity from persisted unexpired holds
+        const activeBase = (supabase.from("cart_holds" as any) as any).select("quantity");
+        const activeByProd =
+          typeof activeBase?.eq === "function"
+            ? activeBase.eq("product_id", productId)
+            : null;
+        if (typeof activeByProd?.in === "function") {
+          const { data: activeRows } = await activeByProd
+            .in("status", ["ACTIVE_HOLD", "PAYMENT_RETRYING"])
+            .gt("expires_at", nowIso);
+          if (Array.isArray(activeRows)) {
+            const dbHeldQty = activeRows.reduce(
+              (sum: number, r: { quantity?: number }) => sum + (Number(r.quantity) || 1),
+              0,
+            );
+            if (dbHeldQty + qty > product.stock) {
+              return NextResponse.json(
+                {
+                  success: false,
+                  code: "INSUFFICIENT_STOCK",
+                  error: `Insufficient stock for product ${productId}`,
+                },
+                { status: 409 }
+              );
+            }
+          }
+        }
+      } catch {
+        // Proceed to Redis atomic reservation check if DB preflight unavailable
+      }
+    }
+
     // Execute Redis atomic reservation lock
     const holdResult = await createCartHold({
       productId,
@@ -66,19 +109,10 @@ export async function POST(request: NextRequest) {
     }
 
     // Sync hold ledger with Supabase staging database if connected.
-    // Redis is the single authoritative store for temporary reservation locks;
-    // products.stock_quantity is only decremented on order fulfillment so concurrent
-    // or expired holds never race on or strand physical database stock.
-    const supabase = getSupabaseServiceRoleClient();
+    // Redis (backed by REDIS_URL when configured) + unexpired cart_holds rows track
+    // active reservations without mutating physical products.stock_quantity.
     if (supabase && holdResult.hold) {
       try {
-        const nowIso = new Date().toISOString();
-        await (supabase.from("cart_holds" as any) as any)
-          .update({ status: "EXPIRED_RELEASE", updated_at: nowIso })
-          .eq("product_id", productId)
-          .in("status", ["ACTIVE_HOLD", "PAYMENT_RETRYING"])
-          .lte("expires_at", nowIso);
-
         const { error: insertErr } = await supabase.from("cart_holds").insert({
           id: holdResult.hold.holdId,
           product_id: productId,

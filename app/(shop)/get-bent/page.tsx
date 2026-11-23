@@ -29,11 +29,10 @@ export default function GetBentFlagshipDropPage() {
   const [totalMinted, setTotalMinted] = useState<number>(114);
   const [topBidDollars, setTopBidDollars] = useState<number>(69);
   const [activeBatch, setActiveBatch] = useState<ProductBatch | null>(null);
-  const [catalogProductId, setCatalogProductId] = useState<string | null>(null);
-  const [liveBatchFallback, setLiveBatchFallback] = useState<{
-    productId?: string | null;
-    sku?: string;
-  } | null>(null);
+  const [liveBatch, setLiveBatch] = useState<ProductBatch | null>(null);
+  const [catalogProducts, setCatalogProducts] = useState<
+    Array<{ id: string; sku?: string }>
+  >([]);
 
   useEffect(() => {
     const batchParam =
@@ -42,16 +41,20 @@ export default function GetBentFlagshipDropPage() {
         : null;
 
     let active = true;
+    const applyBatchTelemetry = (matched: ProductBatch) => {
+      if (typeof matched.mintedCount === "number" && matched.mintedCount > 0) {
+        setTotalMinted(matched.mintedCount);
+      }
+      if (typeof matched.metadata?.topBidDollars === "number") {
+        setTopBidDollars(matched.metadata.topBidDollars);
+      }
+    };
+
     if (batchParam) {
       fetchActiveBatchByParam("get-bent", batchParam).then((matched) => {
         if (!active || !matched) return;
         setActiveBatch(matched);
-        if (typeof matched.mintedCount === "number" && matched.mintedCount > 0) {
-          setTotalMinted(matched.mintedCount);
-        }
-        if (typeof matched.metadata?.topBidDollars === "number") {
-          setTopBidDollars(matched.metadata.topBidDollars);
-        }
+        applyBatchTelemetry(matched);
       });
     } else if (typeof fetch === "function") {
       fetch("/api/drops?brand=get-bent&mode=live")
@@ -59,7 +62,8 @@ export default function GetBentFlagshipDropPage() {
         .then((data) => {
           if (!active || !Array.isArray(data?.batches) || data.batches.length === 0) return;
           const live = data.batches[0] as ProductBatch;
-          setLiveBatchFallback({ productId: live.productId, sku: live.sku });
+          setLiveBatch(live);
+          applyBatchTelemetry(live);
         })
         .catch(() => {
           // Best-effort lookup
@@ -70,15 +74,8 @@ export default function GetBentFlagshipDropPage() {
       fetch("/api/products?brand=get-bent")
         .then((res) => (res.ok ? res.json() : null))
         .then((data) => {
-          if (!active || !Array.isArray(data?.products) || data.products.length === 0) return;
-          const targetSku = batchParam?.toUpperCase();
-          const matched =
-            (targetSku
-              ? data.products.find((p: { sku?: string }) => p.sku?.toUpperCase() === targetSku)
-              : null) || data.products[0];
-          if (matched?.id) {
-            setCatalogProductId(matched.id);
-          }
+          if (!active || !Array.isArray(data?.products)) return;
+          setCatalogProducts(data.products);
         })
         .catch(() => {
           // Best-effort lookup
@@ -90,18 +87,30 @@ export default function GetBentFlagshipDropPage() {
     };
   }, []);
 
-  const parsedRetireMs = activeBatch?.autoRetireAt
-    ? Date.parse(activeBatch.autoRetireAt)
+  const effectiveBatch = activeBatch || liveBatch;
+  const parsedRetireMs = effectiveBatch?.autoRetireAt
+    ? Date.parse(effectiveBatch.autoRetireAt)
     : Number.NaN;
-  const activeCutoffMs =
-    Number.isFinite(parsedRetireMs) && parsedRetireMs > 0
+  const checkoutCutoffMs = effectiveBatch
+    ? Number.isFinite(parsedRetireMs) && parsedRetireMs > 0
       ? parsedRetireMs
-      : BLACK_FRIDAY_CUTOFF_MS;
-  const parsedLiveMs = activeBatch?.goesLiveAt
-    ? Date.parse(activeBatch.goesLiveAt)
+      : undefined
+    : BLACK_FRIDAY_CUTOFF_MS;
+  const timerCutoffMs = checkoutCutoffMs ?? BLACK_FRIDAY_CUTOFF_MS;
+  const parsedLiveMs = effectiveBatch?.goesLiveAt
+    ? Date.parse(effectiveBatch.goesLiveAt)
     : Number.NaN;
   const activeStartsMs =
     Number.isFinite(parsedLiveMs) && parsedLiveMs > 0 ? parsedLiveMs : undefined;
+
+  const matchedCatalogByBatchSku = effectiveBatch?.sku
+    ? catalogProducts.find(
+        (p) => p.sku?.toUpperCase() === effectiveBatch.sku.toUpperCase(),
+      )
+    : undefined;
+  const resolvedProductId = effectiveBatch
+    ? effectiveBatch.productId || matchedCatalogByBatchSku?.id || null
+    : catalogProducts[0]?.id ?? null;
 
   return (
     <main className="min-h-screen bg-[#1A1A1A] text-[#F9F9F9] selection:bg-[#CC5500]/40 selection:text-white">
@@ -181,7 +190,7 @@ export default function GetBentFlagshipDropPage() {
               <div className="mt-1 flex items-baseline gap-2">
                 <span className="font-mono text-xs text-white/45">24HR WINDOW:</span>
                 <CountdownTimer
-                  expiresAt={activeCutoffMs}
+                  expiresAt={timerCutoffMs}
                   className="text-xl sm:text-2xl font-bold text-[#22D3EE]"
                 />
               </div>
@@ -226,13 +235,9 @@ export default function GetBentFlagshipDropPage() {
               topBidDollars={topBidDollars}
               onUpdateTopBid={(bid) => setTopBidDollars(bid)}
               startsAtMs={activeStartsMs}
-              cutoffMs={activeCutoffMs}
-              productId={
-                activeBatch?.productId ||
-                liveBatchFallback?.productId ||
-                catalogProductId
-              }
-              batchSku={activeBatch?.sku || liveBatchFallback?.sku || "GB-BF-001"}
+              cutoffMs={checkoutCutoffMs}
+              productId={resolvedProductId}
+              batchSku={effectiveBatch?.sku || "GB-BF-001"}
             />
           </div>
         </section>

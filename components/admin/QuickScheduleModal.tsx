@@ -20,6 +20,7 @@ interface QuickScheduleModalProps {
   selectedDateIso: string; // YYYY-MM-DD
   editingBatch?: ProductBatch | null;
   availableBrands?: ScheduleBrandOption[];
+  brandAuthChecked?: boolean;
   defaultBrandHandle?: string;
   onSave: (payload: {
     batchId?: string;
@@ -69,17 +70,21 @@ export function QuickScheduleModal({
   selectedDateIso,
   editingBatch,
   availableBrands = [],
+  brandAuthChecked = false,
   defaultBrandHandle,
   onSave,
 }: QuickScheduleModalProps) {
+  const hasNoOwnedBrands = Boolean(
+    brandAuthChecked && availableBrands.length === 0 && !editingBatch,
+  );
   const [title, setTitle] = useState(() => editingBatch?.title ?? "");
   const [sku, setSku] = useState(() => editingBatch?.sku ?? "MKR-DROP-001");
   const [brandHandle, setBrandHandle] = useState(
     () =>
       editingBatch?.brandHandle ??
-      defaultBrandHandle ??
-      availableBrands[0]?.handle ??
-      "get-bent",
+      (hasNoOwnedBrands
+        ? ""
+        : defaultBrandHandle ?? availableBrands[0]?.handle ?? "get-bent"),
   );
   const [initialStartLocal] = useState(() =>
     editingBatch ? toLocalDatetimeInput(editingBatch.goesLiveAt) : `${selectedDateIso}T12:00`,
@@ -213,7 +218,11 @@ export function QuickScheduleModal({
           <label htmlFor="sched-brand" className="font-mono text-[11px] text-white/70">
             Storefront Brand Handle
           </label>
-          {availableBrands.length > 0 ? (
+          {hasNoOwnedBrands ? (
+            <div className="p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/35 font-mono text-xs text-amber-200">
+              No owned storefront brand found for your account. Claim or register a brand before scheduling drops.
+            </div>
+          ) : availableBrands.length > 0 ? (
             <select
               id="sched-brand"
               value={brandHandle}
@@ -457,7 +466,7 @@ export function QuickScheduleModal({
           </button>
           <button
             type="submit"
-            disabled={saving}
+            disabled={saving || hasNoOwnedBrands}
             className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-[#CC5500] hover:bg-[#e0621a] disabled:opacity-50 font-mono text-xs font-bold text-white shadow-[0_0_20px_rgba(204,85,0,0.35)] cursor-pointer"
           >
             <Sparkles className="w-3.5 h-3.5" />

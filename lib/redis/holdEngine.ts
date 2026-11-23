@@ -7,6 +7,7 @@
  */
 
 import crypto from "crypto";
+import Redis from "ioredis";
 import { type HoldReleaseReason } from "@/lib/types/events";
 import {
   CREATE_HOLD_LUA,
@@ -42,9 +43,9 @@ export {
   type RedisClientInterface,
 };
 
-// ─── Default In-Memory Singleton ──────────────────────────────────────────────
+// ─── Default Redis / In-Memory Singleton ──────────────────────────────────────
 
-let defaultClient: RedisClientInterface = new InMemoryRedisClient();
+let defaultClient: RedisClientInterface | null = null;
 
 /**
  * Configures the active Redis client (e.g., standard ioredis client or Upstash adapter).
@@ -54,6 +55,20 @@ export function setHoldEngineRedisClient(client: RedisClientInterface) {
 }
 
 export function getHoldEngineRedisClient(): RedisClientInterface {
+  if (defaultClient) {
+    return defaultClient;
+  }
+
+  const redisUrl = process.env.REDIS_URL?.trim();
+  if (redisUrl && process.env.NODE_ENV !== "test") {
+    defaultClient = new Redis(redisUrl, {
+      maxRetriesPerRequest: 2,
+      enableReadyCheck: false,
+    }) as unknown as RedisClientInterface;
+    return defaultClient;
+  }
+
+  defaultClient = new InMemoryRedisClient();
   return defaultClient;
 }
 
@@ -64,7 +79,7 @@ export function getHoldEngineRedisClient(): RedisClientInterface {
  */
 export async function createCartHold(
   params: CreateHoldParams,
-  client: RedisClientInterface = defaultClient
+  client: RedisClientInterface = getHoldEngineRedisClient()
 ): Promise<CreateHoldResult> {
   const {
     productId,
@@ -146,7 +161,7 @@ export async function refreshCartHold(
   holdId: string,
   extensionSeconds = 300,
   reason = "payment_retry_extension",
-  client: RedisClientInterface = defaultClient
+  client: RedisClientInterface = getHoldEngineRedisClient()
 ): Promise<RefreshHoldResult> {
   try {
     const existingRaw = await client.get(REDIS_KEYS.hold(holdId));
@@ -207,7 +222,7 @@ export async function refreshCartHold(
 export async function releaseCartHold(
   holdId: string,
   reason: HoldReleaseReason = "user_cancelled",
-  client: RedisClientInterface = defaultClient
+  client: RedisClientInterface = getHoldEngineRedisClient()
 ): Promise<ReleaseHoldResult> {
   try {
     const existingRaw = await client.get(REDIS_KEYS.hold(holdId));
@@ -268,7 +283,7 @@ export async function releaseCartHold(
  */
 export async function fulfillCartHold(
   params: FulfillHoldParams,
-  client: RedisClientInterface = defaultClient
+  client: RedisClientInterface = getHoldEngineRedisClient()
 ): Promise<FulfillHoldResult> {
   try {
     const { holdId, orderId, totalCents, txHash = "", chipUid = "" } = params;
@@ -340,7 +355,7 @@ export async function fulfillCartHold(
  */
 export async function getCartHold(
   holdId: string,
-  client: RedisClientInterface = defaultClient
+  client: RedisClientInterface = getHoldEngineRedisClient()
 ): Promise<{ hold: HoldRecord | null; remainingTtlMs: number }> {
   const raw = await client.get(REDIS_KEYS.hold(holdId));
   if (!raw) {
@@ -362,7 +377,7 @@ export async function getCartHold(
 export async function seedProductStock(
   productId: string,
   totalStock: number,
-  client: RedisClientInterface = defaultClient
+  client: RedisClientInterface = getHoldEngineRedisClient()
 ): Promise<void> {
   await client.set(REDIS_KEYS.productStock(productId), String(totalStock));
 }
@@ -372,7 +387,7 @@ export async function seedProductStock(
  */
 export async function reconcileProductStockLocks(
   productId: string,
-  client: RedisClientInterface = defaultClient
+  client: RedisClientInterface = getHoldEngineRedisClient()
 ): Promise<number> {
   if (client instanceof InMemoryRedisClient) {
     return client.reconcileExpired(productId);

@@ -40,6 +40,13 @@ export function BatchSettlementModal({
     [manifestResult],
   );
   const isSimulatedPreview = manifestResult?.isSimulatedPreview ?? false;
+  const hasShippingAddresses = useMemo(
+    () =>
+      orders.some((o) =>
+        Boolean(o.address?.trim() && o.city?.trim() && o.state?.trim() && o.zip?.trim()),
+      ),
+    [orders],
+  );
 
   const summary = useMemo(
     () => (item ? calculateBatchSettlement(item, orders) : null),
@@ -51,7 +58,7 @@ export function BatchSettlementModal({
   const batchSlug = item.sku.toLowerCase().replace(/[^a-z0-9-]+/g, "-");
 
   const handleDownloadPirateShip = () => {
-    if (orders.length === 0) return;
+    if (orders.length === 0 || !hasShippingAddresses) return;
     const csv = generatePirateShipCsv(orders);
     downloadCsvFile(`pirateship-labels-${batchSlug}.csv`, csv);
   };
@@ -154,12 +161,18 @@ export function BatchSettlementModal({
         </div>
       </div>
 
+      {orders.length > 0 && !hasShippingAddresses && (
+        <div className="p-3 rounded-xl bg-white/5 border border-white/10 font-mono text-[11px] text-white/60">
+          Shipping labels disabled: street addresses were not captured on POS-only orders. NFC Tag Manifest CSV remains available.
+        </div>
+      )}
+
       {/* 3. CSV Export Actions */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
         <button
           type="button"
           onClick={handleDownloadPirateShip}
-          disabled={orders.length === 0}
+          disabled={orders.length === 0 || !hasShippingAddresses}
           className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-[#CC5500] hover:bg-[#e0621a] disabled:opacity-40 font-mono text-xs font-bold text-white shadow-[0_0_20px_rgba(204,85,0,0.3)] cursor-pointer disabled:cursor-not-allowed"
         >
           <Download className="w-4 h-4" />

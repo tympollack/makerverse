@@ -27,6 +27,7 @@ import { getVendorBatches } from "@/lib/db/batches";
 import { QuickScheduleModal } from "@/components/admin/QuickScheduleModal";
 import { DualTrackCheckoutPanel } from "@/components/shop/get-bent/DualTrackCheckoutPanel";
 import { InventoryManager } from "@/components/admin/InventoryManager";
+import GetBentFlagshipDropPage from "@/app/(shop)/get-bent/page";
 import type { ProductBatch } from "@/lib/drops/lifecycle";
 
 describe("PR #15 Review Fixes Coverage", () => {
@@ -342,6 +343,96 @@ describe("PR #15 Review Fixes Coverage", () => {
 
     await user.click(screen.getByRole("button", { name: /Print & Ship Manifest/i }));
     expect(screen.getByText(/1 Units Settled/i)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Export Pirate Ship CSV/i })).not.toBeDisabled();
+    expect(screen.getByRole("button", { name: /Export Pirate Ship CSV/i })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /Export NFC Tag Manifest CSV/i })).not.toBeDisabled();
+  });
+
+  it("resolves unlinked live batch SKU and post-Black-Friday window on plain /get-bent storefront", async () => {
+    const user = userEvent.setup();
+    const futureCloseIso = new Date(Date.now() + 72 * 3_600_000).toISOString();
+    const pastStartIso = new Date(Date.now() - 3_600_000).toISOString();
+
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      const url = typeof input === "string" ? input : input.toString();
+      if (url.includes("/api/drops?brand=get-bent&mode=live")) {
+        return new Response(
+          JSON.stringify({
+            batches: [
+              {
+                id: "live-gb-002",
+                brandId: "b-gb",
+                brandHandle: "get-bent",
+                productId: null,
+                title: "Batch 002: Winter Drop",
+                sku: "GB-002",
+                batchNumber: 2,
+                isPublished: true,
+                goesLiveAt: pastStartIso,
+                autoRetireAt: futureCloseIso,
+                versionTag: "v2.0",
+                isPublicTeaser: true,
+                chipTier: "NTAG213_SERIALIZED",
+                basePriceCents: 2500,
+                maxCap: null,
+                mintedCount: 120,
+                vanityAuctionEnabled: true,
+              },
+            ],
+          }),
+          { status: 200 },
+        );
+      }
+      if (url.includes("/api/products?brand=get-bent")) {
+        return new Response(
+          JSON.stringify({
+            products: [
+              { id: "prod-gb-001", sku: "GB-001" },
+              { id: "prod-gb-002", sku: "GB-002" },
+            ],
+          }),
+          { status: 200 },
+        );
+      }
+      if (url.includes("/api/holds")) {
+        return new Response(JSON.stringify({ success: true }), { status: 201 });
+      }
+      return new Response(JSON.stringify({}), { status: 200 });
+    });
+
+    render(<GetBentFlagshipDropPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText(/120 SHIRTS MINTED SO FAR/i)).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole("button", { name: /Enter Sequential Hopper/i }));
+    await waitFor(() => {
+      const holdCall = fetchSpy.mock.calls.find(([u]) => String(u).includes("/api/holds"));
+      expect(holdCall).toBeDefined();
+      const body = JSON.parse(holdCall![1]!.body as string);
+      expect(body.productId).toBe("prod-gb-002");
+      expect(body.sku).toBe("GB-002-HOPPER");
+    });
+
+    fetchSpy.mockRestore();
+  });
+
+  it("blocks scheduling when authenticated vendor owns zero brands", () => {
+    render(
+      <QuickScheduleModal
+        isOpen
+        onClose={vi.fn()}
+        selectedDateIso="2026-12-01"
+        availableBrands={[]}
+        brandAuthChecked
+        defaultBrandHandle=""
+        onSave={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.getByText(/No owned storefront brand found for your account/i),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^Confirm Schedule$/i })).toBeDisabled();
   });
 });

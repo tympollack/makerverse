@@ -128,7 +128,8 @@ export async function POST(request: NextRequest) {
         persistedToDb: true,
         verified: isVerifiedEmailOwner,
         batchId,
-        subscribed: true,
+        subscribed: isVerifiedEmailOwner,
+        preservedExistingPreference: !isVerifiedEmailOwner,
       });
     }
 

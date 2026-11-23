@@ -442,12 +442,12 @@ export async function togglePublicTeaser(input: {
 
 export async function getVendorAuthorizedBrands(input?: {
   authToken?: string;
-}): Promise<Array<{ id: string; handle: string; name: string }>> {
+}): Promise<{ authorized: boolean; brands: Array<{ id: string; handle: string; name: string }> }> {
   const supabase = getSupabaseServiceRoleClient() || getSupabaseServerClient();
   if (supabase) {
     const caller = await resolveCallerAuth(supabase as any, input?.authToken);
     if (!caller.authorized) {
-      return [];
+      return { authorized: false, brands: [] };
     }
 
     let query = (supabase.from("brands" as any) as any)
@@ -460,16 +460,22 @@ export async function getVendorAuthorizedBrands(input?: {
 
     const { data, error } = await query;
     if (!error && Array.isArray(data)) {
-      return data.map((b: any) => ({
-        id: b.id,
-        handle: b.slug,
-        name: b.name || b.slug,
-      }));
+      return {
+        authorized: true,
+        brands: data.map((b: any) => ({
+          id: b.id,
+          handle: b.slug,
+          name: b.name || b.slug,
+        })),
+      };
     }
-    return [];
+    return { authorized: true, brands: [] };
   }
 
-  return IS_MOCK_ENABLED
-    ? ALL_BRANDS.map((b) => ({ id: b.id, handle: b.handle, name: b.name }))
-    : [];
+  return {
+    authorized: IS_MOCK_ENABLED,
+    brands: IS_MOCK_ENABLED
+      ? ALL_BRANDS.map((b) => ({ id: b.id, handle: b.handle, name: b.name }))
+      : [],
+  };
 }
