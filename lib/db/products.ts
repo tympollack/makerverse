@@ -29,6 +29,7 @@ export async function getProducts(brandHandle?: string): Promise<Product[]> {
       let query = (supabase.from("products" as any) as any).select(`
         id,
         sku,
+        product_line_id,
         title,
         description,
         price_cents,
@@ -67,6 +68,7 @@ export async function getProducts(brandHandle?: string): Promise<Product[]> {
             id: p.id,
             sku: p.sku,
             brandHandle: normalized,
+            productLineId: p.product_line_id || p.product_lines?.id || undefined,
             title: p.title,
             description: p.description || "",
             price: p.price_cents,
@@ -136,6 +138,7 @@ export async function getProductById(idOrSku: string): Promise<Product | null> {
           return {
             id: data.id,
             sku: data.sku,
+            productLineId: data.product_line_id || undefined,
             title: data.title,
             description: data.description || "",
             price: data.price_cents,

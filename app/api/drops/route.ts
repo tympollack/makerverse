@@ -1,6 +1,10 @@
 // app/api/drops/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { getScheduledTeasers, getVendorBatches } from "@/lib/db/batches";
+import {
+  getLiveBatches,
+  getScheduledTeasers,
+  getVendorBatches,
+} from "@/lib/db/batches";
 import { verifyAdminAuth } from "@/lib/auth/adminAuth";
 
 export async function GET(request: NextRequest) {
@@ -16,6 +20,11 @@ export async function GET(request: NextRequest) {
       );
     }
     const batches = await getVendorBatches(brandHandle);
+    return NextResponse.json({ batches });
+  }
+
+  if (mode === "live") {
+    const batches = await getLiveBatches(brandHandle);
     return NextResponse.json({ batches });
   }
 

@@ -6,6 +6,7 @@ import Link from "next/link";
 import { Lock, Sparkles, Clock, CheckCircle2, Mail, ArrowRight, BellRing, Check } from "lucide-react";
 import { FrostedCard } from "@/components/ui/FrostedCard";
 import { CountdownTimer } from "@/components/ui/CountdownTimer";
+import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import {
   isBatchCheckoutUnlocked,
   type ProductBatch,
@@ -42,14 +43,18 @@ export function UpcomingDropCard({ batch, onUnlock }: UpcomingDropCardProps) {
     onUnlock?.(batch.id);
   };
 
-  const submitNotifySubscription = async (email: string) => {
+  const submitNotifySubscription = async (email: string, accessToken?: string) => {
     setSubmitting(true);
     setErrorNote(null);
     setStatusNote(null);
     try {
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (accessToken) {
+        headers.Authorization = `Bearer ${accessToken}`;
+      }
       const res = await fetch("/api/drops/notify", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify({ batchId: batch.id, email }),
       });
       const data = await res.json().catch(() => ({}));
@@ -72,10 +77,28 @@ export function UpcomingDropCard({ batch, onUnlock }: UpcomingDropCardProps) {
     }
   };
 
-  const handleNotifyClick = () => {
+  const handleNotifyClick = async () => {
     if (notified) return;
-    if (emailInput.trim() && emailInput.includes("@")) {
-      void submitNotifySubscription(emailInput.trim());
+
+    let sessionEmail = "";
+    let accessToken: string | undefined;
+    const sb = getSupabaseBrowserClient();
+    if (sb) {
+      try {
+        const { data } = await sb.auth.getSession();
+        accessToken = data?.session?.access_token;
+        if (data?.session?.user?.email) {
+          sessionEmail = data.session.user.email.trim().toLowerCase();
+        }
+      } catch {
+        // Fallback to inline guest email prompt
+      }
+    }
+
+    const effectiveEmail = emailInput.trim() || sessionEmail;
+    if (effectiveEmail && effectiveEmail.includes("@")) {
+      setEmailInput(effectiveEmail);
+      await submitNotifySubscription(effectiveEmail, accessToken);
     } else {
       setErrorNote(null);
       setShowEmailPrompt((prev) => !prev);

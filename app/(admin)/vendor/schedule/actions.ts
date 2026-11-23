@@ -9,6 +9,7 @@ import {
   type ProductBatch,
   type BatchMetadata,
 } from "@/lib/drops/lifecycle";
+import { dispatchPendingDropAlerts } from "@/lib/email/dropAlerts";
 import { IS_MOCK_ENABLED } from "@/lib/mock/adminData";
 import { ALL_BRANDS, type ChipTier } from "@/lib/mock/shopData";
 
@@ -17,6 +18,8 @@ const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12
 export interface ScheduleBatchInput {
   brandId?: string;
   brandHandle?: string;
+  productId?: string | null;
+  productLineId?: string | null;
   title: string;
   sku?: string;
   goesLiveAt: string;
@@ -38,7 +41,28 @@ export interface BatchActionResult {
   success: boolean;
   persistedToDb: boolean;
   batch?: ProductBatch;
+  alertsDispatched?: number;
   error?: string;
+}
+
+async function maybeDispatchImmediateDropAlert(
+  supabase: NonNullable<ReturnType<typeof getSupabaseServiceRoleClient>>,
+  batchId: string,
+  status: string,
+): Promise<number> {
+  if (status !== "LIVE") {
+    return 0;
+  }
+  try {
+    const res = await dispatchPendingDropAlerts({
+      supabase: supabase as any,
+      batchId,
+    });
+    return res.emailsDispatched;
+  } catch (err) {
+    console.warn("[schedule/actions] Immediate drop alert dispatch notice:", err);
+    return 0;
+  }
 }
 
 async function resolveCallerAuth(
@@ -154,6 +178,8 @@ export async function scheduleBatchRelease(
     id: `batch_${Date.now().toString(36)}`,
     brandId: fallbackBrandId,
     brandHandle,
+    productId: input.productId ?? null,
+    productLineId: input.productLineId ?? null,
     parentBatchId: input.parentBatchId ?? null,
     title,
     sku: (input.sku || `MKR-${Date.now().toString(36).slice(-4)}`).toUpperCase(),
@@ -194,6 +220,8 @@ export async function scheduleBatchRelease(
     const { data, error } = await (supabase.from("product_batches" as any) as any)
       .insert({
         brand_id: brandCheck.brandId,
+        product_id: input.productId && UUID_REGEX.test(input.productId) ? input.productId : null,
+        product_line_id: input.productLineId && UUID_REGEX.test(input.productLineId) ? input.productLineId : null,
         parent_batch_id: input.parentBatchId && UUID_REGEX.test(input.parentBatchId) ? input.parentBatchId : null,
         title: candidateBatch.title,
         sku: candidateBatch.sku,
@@ -224,9 +252,20 @@ export async function scheduleBatchRelease(
     candidateBatch.brandId = brandCheck.brandId;
     candidateBatch.brandHandle = brandCheck.brandHandle || brandHandle;
 
+    const alertsDispatched = await maybeDispatchImmediateDropAlert(
+      supabase as any,
+      candidateBatch.id,
+      candidateBatch.releaseStatus || resolveBatchLifecycleStatus(candidateBatch),
+    );
+
     revalidatePath("/vendor/schedule");
     revalidatePath(`/${candidateBatch.brandHandle}`);
-    return { success: true, persistedToDb: true, batch: candidateBatch };
+    return {
+      success: true,
+      persistedToDb: true,
+      batch: candidateBatch,
+      alertsDispatched,
+    };
   }
 
   if (!IS_MOCK_ENABLED) {
@@ -242,6 +281,8 @@ export async function rescheduleBatchWindow(input: {
   goesLiveAt: string;
   autoRetireAt?: string | null;
   isPublished?: boolean;
+  productId?: string | null;
+  productLineId?: string | null;
   title?: string;
   sku?: string;
   versionTag?: string;
@@ -301,6 +342,17 @@ export async function rescheduleBatchWindow(input: {
         goes_live_at: normalizedLive,
         auto_retire_at: normalizedRetire,
         ...(input.isPublished !== undefined ? { is_published: input.isPublished } : {}),
+        ...(input.productId !== undefined
+          ? { product_id: input.productId && UUID_REGEX.test(input.productId) ? input.productId : null }
+          : {}),
+        ...(input.productLineId !== undefined
+          ? {
+              product_line_id:
+                input.productLineId && UUID_REGEX.test(input.productLineId)
+                  ? input.productLineId
+                  : null,
+            }
+          : {}),
         ...(input.title !== undefined ? { title: input.title.trim() } : {}),
         ...(input.sku !== undefined ? { sku: input.sku.trim().toUpperCase() } : {}),
         ...(input.versionTag !== undefined ? { version_tag: input.versionTag } : {}),
@@ -314,8 +366,19 @@ export async function rescheduleBatchWindow(input: {
       return { success: false, persistedToDb: false, error: updateErr.message };
     }
 
+    const updatedStatus = resolveBatchLifecycleStatus({
+      isPublished: input.isPublished ?? Boolean(existing.is_published),
+      goesLiveAt: normalizedLive,
+      autoRetireAt: normalizedRetire,
+    });
+    const alertsDispatched = await maybeDispatchImmediateDropAlert(
+      supabase as any,
+      input.batchId,
+      updatedStatus,
+    );
+
     revalidatePath("/vendor/schedule");
-    return { success: true, persistedToDb: true };
+    return { success: true, persistedToDb: true, alertsDispatched };
   }
 
   if (!IS_MOCK_ENABLED) {

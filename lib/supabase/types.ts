@@ -526,6 +526,7 @@ export interface MakerverseTables {
       id: string;
       brand_id: string;
       product_id: string | null;
+      product_line_id: string | null;
       parent_batch_id: string | null;
       title: string;
       sku: string | null;
@@ -533,6 +534,8 @@ export interface MakerverseTables {
       is_published: boolean;
       goes_live_at: string;
       auto_retire_at: string | null;
+      drop_alert_sent_at: string | null;
+      drop_alert_claimed_at: string | null;
       version_tag: string;
       is_public_teaser: boolean;
       artist_attribution: string | null;
@@ -550,6 +553,7 @@ export interface MakerverseTables {
       id?: string;
       brand_id: string;
       product_id?: string | null;
+      product_line_id?: string | null;
       parent_batch_id?: string | null;
       title: string;
       sku?: string | null;
@@ -557,6 +561,8 @@ export interface MakerverseTables {
       is_published?: boolean;
       goes_live_at?: string;
       auto_retire_at?: string | null;
+      drop_alert_sent_at?: string | null;
+      drop_alert_claimed_at?: string | null;
       version_tag?: string;
       is_public_teaser?: boolean;
       artist_attribution?: string | null;
@@ -574,6 +580,7 @@ export interface MakerverseTables {
       id?: string;
       brand_id?: string;
       product_id?: string | null;
+      product_line_id?: string | null;
       parent_batch_id?: string | null;
       title?: string;
       sku?: string | null;
@@ -581,6 +588,8 @@ export interface MakerverseTables {
       is_published?: boolean;
       goes_live_at?: string;
       auto_retire_at?: string | null;
+      drop_alert_sent_at?: string | null;
+      drop_alert_claimed_at?: string | null;
       version_tag?: string;
       is_public_teaser?: boolean;
       artist_attribution?: string | null;
@@ -620,6 +629,42 @@ export interface MakerverseTables {
       email?: string | null;
       verified?: boolean;
       created_at?: string;
+    };
+    Relationships: [];
+  };
+  drop_subscriptions: {
+    Row: {
+      id: string;
+      email: string;
+      user_id: string | null;
+      target_type: "brand" | "product_line" | "batch";
+      target_id: string;
+      unsubscribe_token: string;
+      is_active: boolean;
+      created_at: string;
+      updated_at: string;
+    };
+    Insert: {
+      id?: string;
+      email: string;
+      user_id?: string | null;
+      target_type: "brand" | "product_line" | "batch";
+      target_id: string;
+      unsubscribe_token?: string;
+      is_active?: boolean;
+      created_at?: string;
+      updated_at?: string;
+    };
+    Update: {
+      id?: string;
+      email?: string;
+      user_id?: string | null;
+      target_type?: "brand" | "product_line" | "batch";
+      target_id?: string;
+      unsubscribe_token?: string;
+      is_active?: boolean;
+      created_at?: string;
+      updated_at?: string;
     };
     Relationships: [];
   };
@@ -666,6 +711,17 @@ export interface MakerverseFunctions {
       status: string;
       expires_at: string;
       is_idempotent_replay: boolean;
+    };
+  };
+  unsubscribe_drop_subscription: {
+    Args: {
+      p_token: string;
+    };
+    Returns: {
+      found: boolean;
+      unsubscribed: boolean;
+      target_type?: string;
+      target_id?: string;
     };
   };
 }

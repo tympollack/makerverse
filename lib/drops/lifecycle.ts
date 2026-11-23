@@ -18,6 +18,7 @@ export interface ProductBatch {
   brandId: string;
   brandHandle: string;
   productId?: string | null;
+  productLineId?: string | null;
   parentBatchId?: string | null;
   title: string;
   sku: string;

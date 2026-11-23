@@ -25,6 +25,7 @@ export interface Product {
   sku: string;
   brandId?: string;
   brandHandle?: string;
+  productLineId?: string;
   title: string;
   description: string;
   price: number; // in cents
