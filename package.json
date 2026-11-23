@@ -14,7 +14,7 @@
     "db:seed": "vitest run lib/db/seed.ts"
   },
   "dependencies": {
-    "@digitalcanopy/email": "^0.1.0",
+    "@digitalcanopy/email": "^0.1.1",
     "@digitalcanopy/ui": "^0.1.2",
     "@supabase/supabase-js": "^2.112.4",
     "clsx": "^2.1.1",
