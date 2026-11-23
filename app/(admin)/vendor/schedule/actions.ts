@@ -439,3 +439,43 @@ export async function togglePublicTeaser(input: {
 
   return { success: true, persistedToDb: false };
 }
+
+export async function getVendorAuthorizedBrands(input?: {
+  authToken?: string;
+}): Promise<{ authorized: boolean; brands: Array<{ id: string; handle: string; name: string }> }> {
+  const supabase = getSupabaseServiceRoleClient() || getSupabaseServerClient();
+  if (supabase) {
+    const caller = await resolveCallerAuth(supabase as any, input?.authToken);
+    if (!caller.authorized) {
+      return { authorized: false, brands: [] };
+    }
+
+    let query = (supabase.from("brands" as any) as any)
+      .select("id, slug, name")
+      .order("created_at", { ascending: true });
+
+    if (!caller.isAdmin && caller.userId) {
+      query = query.eq("owner_id", caller.userId);
+    }
+
+    const { data, error } = await query;
+    if (!error && Array.isArray(data)) {
+      return {
+        authorized: true,
+        brands: data.map((b: any) => ({
+          id: b.id,
+          handle: b.slug,
+          name: b.name || b.slug,
+        })),
+      };
+    }
+    return { authorized: true, brands: [] };
+  }
+
+  return {
+    authorized: IS_MOCK_ENABLED,
+    brands: IS_MOCK_ENABLED
+      ? ALL_BRANDS.map((b) => ({ id: b.id, handle: b.handle, name: b.name }))
+      : [],
+  };
+}

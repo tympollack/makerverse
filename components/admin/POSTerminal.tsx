@@ -12,6 +12,7 @@ import { StatusBadge } from "@/components/ui/StatusBadge";
 import { VersionReleaseBadge } from "@/components/admin/VersionReleaseBadge";
 import { POS_TRANSACTIONS } from "@/lib/mock/adminData";
 import type { POSTransaction, POSMode } from "@/lib/mock/adminData";
+import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 
 // ─── Mock Customers for High-Touch Flow ────────────────────────────────────────
@@ -1175,6 +1176,17 @@ export function POSTerminal({
 
   const handleTransactionComplete = (newTx: POSTransaction) => {
     setTransactions((prev) => [newTx, ...prev]);
+    const sb = getSupabaseBrowserClient();
+    if (!sb || typeof fetch !== "function") return;
+    void sb.auth.getSession().then(({ data }) => {
+      const token = data?.session?.access_token;
+      if (!token) return;
+      return fetch("/api/admin/pos", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify(newTx),
+      });
+    }).catch(() => {});
   };
 
   return (

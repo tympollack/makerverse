@@ -1,5 +1,6 @@
 // lib/db/admin.ts
-import { getSupabaseServerClient } from "@/lib/supabase/server";
+import { getSupabaseServerClient, getSupabaseServiceRoleClient } from "@/lib/supabase/server";
+import type { BatchOrderRow } from "@/lib/utils/exportBatchManifest";
 import {
   IS_MOCK_ENABLED,
   TELEMETRY,
@@ -43,18 +44,40 @@ export async function getAdminInventory(): Promise<InventoryItem[]> {
         .order("created_at", { ascending: false });
 
       if (!error && products) {
-        return products.map((p: any) => ({
-          id: p.id,
-          sku: p.sku,
-          title: p.title,
-          chipTier: p.hardware_tier === "NTAG424_DNA_CMAC" ? "NTAG424_DNA" : p.hardware_tier,
-          stock: p.stock_quantity,
-          maxStock: p.max_stock || 24,
-          royaltyBps: Math.round((p.secondary_royalty_pct || 7.5) * 100),
-          status: p.stock_quantity === 0 ? "OUT_OF_STOCK" : p.stock_quantity <= 3 ? "LOW_STOCK" : "IN_STOCK",
-          coSignRequired: p.co_sign_required,
-          lastUpdated: p.updated_at || p.created_at,
-        }));
+        return products.map((p: any) => {
+          const spec =
+            p.hardware_spec && typeof p.hardware_spec === "object"
+              ? p.hardware_spec
+              : {};
+          return {
+            id: p.id,
+            sku: p.sku,
+            title: p.title,
+            chipTier:
+              p.hardware_tier === "NTAG424_DNA_CMAC"
+                ? "NTAG424_DNA"
+                : p.hardware_tier,
+            stock: p.stock_quantity,
+            maxStock: p.max_stock || 24,
+            priceCents: p.price_cents ?? 2500,
+            royaltyBps: Math.round((p.secondary_royalty_pct || 7.5) * 100),
+            status:
+              p.stock_quantity === 0
+                ? "OUT_OF_STOCK"
+                : p.stock_quantity <= 3
+                  ? "LOW_STOCK"
+                  : "IN_STOCK",
+            coSignRequired: p.co_sign_required,
+            lastUpdated: p.updated_at || p.created_at,
+            versionTag: spec.versionTag || undefined,
+            artistAttribution: spec.artistAttribution || undefined,
+            parentSku: spec.parentSku || undefined,
+            frontChestStamp: spec.frontChestStamp || undefined,
+            backStatement: spec.backStatement || undefined,
+            auctionEnabled: Boolean(spec.auctionEnabled),
+            durationHours: spec.durationHours ?? null,
+          };
+        });
       }
     } catch (err) {
       console.warn("[getAdminInventory] Inventory fallback:", err);
@@ -121,6 +144,7 @@ export async function getAdminActiveHolds(): Promise<HoldEntry[]> {
           )
         `)
         .eq("status", "ACTIVE_HOLD")
+        .gt("expires_at", new Date().toISOString())
         .order("created_at", { ascending: false });
 
       if (!error && holds) {
@@ -266,4 +290,89 @@ export async function getAdminRaffles(): Promise<RaffleAttempt[]> {
     }
   }
   return IS_MOCK_ENABLED ? INITIAL_RAFFLE_ATTEMPTS : [];
+}
+
+/**
+ * Aggregates finalized POS transactions and fulfilled cart holds keyed by uppercase SKU
+ * so BatchSettlementModal exports real production order manifests instead of an empty list.
+ */
+export async function getAdminBatchOrdersMap(): Promise<Record<string, BatchOrderRow[]>> {
+  const supabase = getSupabaseServiceRoleClient() || getSupabaseServerClient();
+  const ordersBySku: Record<string, BatchOrderRow[]> = {};
+
+  if (!supabase) {
+    return ordersBySku;
+  }
+
+  try {
+    const { data: posRows } = await (supabase.from("pos_transactions" as any) as any)
+      .select("id, sku, price_cents, buyer_handle, status, created_at")
+      .order("created_at", { ascending: true });
+
+    if (Array.isArray(posRows)) {
+      for (const row of posRows) {
+        const skuKey = String(row.sku || "").trim().toUpperCase();
+        if (!skuKey) continue;
+        if (!ordersBySku[skuKey]) ordersBySku[skuKey] = [];
+        const serialNumber = ordersBySku[skuKey].length + 1;
+        ordersBySku[skuKey].push({
+          serialNumber,
+          editionDenominator: serialNumber,
+          size: "L",
+          recipientName: row.buyer_handle || `Collector #${String(serialNumber).padStart(3, "0")}`,
+          address: "",
+          city: "",
+          state: "",
+          zip: "",
+          holderHandle: row.buyer_handle || `@collector_${String(serialNumber).padStart(3, "0")}`,
+          claimStatus: row.status === "UNCLAIMED" ? "UNCLAIMED" : "MINTED_INITIAL",
+          paidDollars: Number(((row.price_cents || 0) / 100).toFixed(2)),
+        });
+      }
+    }
+
+    const { data: fulfilledHolds } = await (supabase.from("cart_holds" as any) as any)
+      .select("id, quantity, user_id, products(sku, price_cents, max_stock)")
+      .eq("status", "FULFILLED")
+      .order("created_at", { ascending: true });
+
+    if (Array.isArray(fulfilledHolds)) {
+      for (const hold of fulfilledHolds) {
+        const prod = Array.isArray(hold.products) ? hold.products[0] : hold.products;
+        const skuKey = String(prod?.sku || "").trim().toUpperCase();
+        if (!skuKey) continue;
+        if (!ordersBySku[skuKey]) ordersBySku[skuKey] = [];
+        const qty = Math.max(1, Number(hold.quantity || 1));
+        for (let i = 0; i < qty; i++) {
+          const serialNumber = ordersBySku[skuKey].length + 1;
+          ordersBySku[skuKey].push({
+            serialNumber,
+            editionDenominator: Number(prod?.max_stock || serialNumber),
+            size: "L",
+            recipientName: hold.user_id || `Collector #${String(serialNumber).padStart(3, "0")}`,
+            address: "",
+            city: "",
+            state: "",
+            zip: "",
+            holderHandle: hold.user_id || `@collector_${String(serialNumber).padStart(3, "0")}`,
+            claimStatus: "MINTED_INITIAL",
+            paidDollars: Number(((prod?.price_cents || 0) / 100).toFixed(2)),
+          });
+        }
+      }
+    }
+
+    for (const list of Object.values(ordersBySku)) {
+      const total = list.length;
+      for (const entry of list) {
+        if (entry.editionDenominator < total) {
+          entry.editionDenominator = total;
+        }
+      }
+    }
+  } catch (err) {
+    console.warn("[getAdminBatchOrdersMap] Batch order aggregation notice:", err);
+  }
+
+  return ordersBySku;
 }

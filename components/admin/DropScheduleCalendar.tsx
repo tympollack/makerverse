@@ -1,7 +1,7 @@
 // components/admin/DropScheduleCalendar.tsx
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import {
   CalendarDays,
   ChevronLeft,
@@ -27,6 +27,7 @@ import {
   scheduleBatchRelease,
   rescheduleBatchWindow,
   togglePublicTeaser,
+  getVendorAuthorizedBrands,
 } from "@/app/(admin)/vendor/schedule/actions";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { cn, formatCents } from "@/lib/utils";
@@ -87,18 +88,52 @@ function batchSpansDay(batch: ProductBatch, day: Date): boolean {
   return start <= dayEnd && end >= dayStart;
 }
 
+export interface ScheduleBrandOption {
+  id: string;
+  handle: string;
+  name: string;
+}
+
 export function DropScheduleCalendar({
   initialBatches = MOCK_SCHEDULED_BATCHES,
+  initialBrands = [],
 }: {
   initialBatches?: ProductBatch[];
+  initialBrands?: ScheduleBrandOption[];
 }) {
   const [batches, setBatches] = useState<ProductBatch[]>(initialBatches);
+  const [availableBrands, setAvailableBrands] = useState<ScheduleBrandOption[]>(initialBrands);
+  const [brandAuthChecked, setBrandAuthChecked] = useState(false);
   const [viewMode, setViewMode] = useState<"month" | "2week">("month");
   const [anchorDate, setAnchorDate] = useState<Date>(() => new Date());
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedDateIso, setSelectedDateIso] = useState<string>(() => toDateKey(new Date()));
   const [editingBatch, setEditingBatch] = useState<ProductBatch | null>(null);
   const [publishError, setPublishError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const sb = getSupabaseBrowserClient();
+    if (!sb) return;
+    let active = true;
+    async function loadVendorBrands() {
+      try {
+        const { data } = await sb!.auth.getSession();
+        const token = data?.session?.access_token;
+        if (!token || !active) return;
+        const result = await getVendorAuthorizedBrands({ authToken: token });
+        if (active && result.authorized) {
+          setAvailableBrands(result.brands);
+          setBrandAuthChecked(true);
+        }
+      } catch {
+        // Retain initialBrands fallback
+      }
+    }
+    void loadVendorBrands();
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const days = useMemo(() => buildCalendarDays(anchorDate, viewMode), [anchorDate, viewMode]);
   const todayKey = toDateKey(new Date());
@@ -654,6 +689,13 @@ export function DropScheduleCalendar({
         onClose={() => setModalOpen(false)}
         selectedDateIso={selectedDateIso}
         editingBatch={editingBatch}
+        availableBrands={availableBrands}
+        brandAuthChecked={brandAuthChecked}
+        defaultBrandHandle={
+          brandAuthChecked && availableBrands.length === 0
+            ? ""
+            : availableBrands[0]?.handle || initialBatches[0]?.brandHandle || "get-bent"
+        }
         onSave={handleSaveBatch}
       />
     </div>

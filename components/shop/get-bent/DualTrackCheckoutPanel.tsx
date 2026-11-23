@@ -89,6 +89,8 @@ interface DualTrackCheckoutPanelProps {
   onUpdateTopBid: (newBid: number) => void;
   startsAtMs?: number;
   cutoffMs?: number;
+  productId?: string | null;
+  batchSku?: string;
 }
 
 export function DualTrackCheckoutPanel({
@@ -98,6 +100,8 @@ export function DualTrackCheckoutPanel({
   onUpdateTopBid,
   startsAtMs,
   cutoffMs,
+  productId,
+  batchSku,
 }: DualTrackCheckoutPanelProps) {
   const [selectedSize, setSelectedSize] = useState<GarmentSize>("L");
   const [nowMs, setNowMs] = useState<number>(() => Date.now());
@@ -129,13 +133,20 @@ export function DualTrackCheckoutPanel({
   const creatorSurplusShare = Number((bidSurplus * 0.8).toFixed(2));
   const creatorTotalFromAuction = Number((24.5 + creatorSurplusShare).toFixed(2));
 
+  const effectiveSku = (batchSku || "GB-BF-001").trim();
+
   const persistHoldRecord = async (skuLabel: string): Promise<boolean> => {
+    const targetProductId = productId || batchSku || (IS_MOCK_ENABLED ? "GB-BF-001" : "");
+    if (!targetProductId) {
+      return false;
+    }
+
     try {
       const res = await fetch("/api/holds", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          productId: "gb_batch_001",
+          productId: targetProductId,
           sku: skuLabel,
           userId: buyerHandle.trim() || "shopper_anon",
           qty: 1,
@@ -165,7 +176,7 @@ export function DualTrackCheckoutPanel({
       return;
     }
 
-    const ok = await persistHoldRecord("GB-BF-001-BID-069");
+    const ok = await persistHoldRecord(`${effectiveSku}-BID-069`);
     if (!ok) {
       setToastNotice("Unable to record bid reservation. Please retry.");
       return;
@@ -215,7 +226,9 @@ export function DualTrackCheckoutPanel({
       return;
     }
 
-    const ok = await persistHoldRecord(selectedVanity ? `GB-BF-001-${selectedVanity}` : "GB-BF-001-HOPPER");
+    const ok = await persistHoldRecord(
+      selectedVanity ? `${effectiveSku}-${selectedVanity}` : `${effectiveSku}-HOPPER`,
+    );
     if (!ok) {
       setToastNotice("Unable to reserve edition slot. Please retry.");
       return;

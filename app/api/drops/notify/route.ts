@@ -17,9 +17,10 @@ export async function POST(request: NextRequest) {
 
     const supabase = getSupabaseServiceRoleClient() || getSupabaseServerClient();
 
-    // Never trust client-supplied userId; resolve only from verified Bearer JWT
+    // Never trust client-supplied userId; resolve only from verified Bearer JWT with a verified email
     let verifiedUserId: string | null = null;
     let verifiedUserEmail = "";
+    let isAnonymousSession = true;
     const authHeader = request.headers.get("authorization");
     if (authHeader?.startsWith("Bearer ") && supabase) {
       const token = authHeader.substring(7).trim();
@@ -30,13 +31,22 @@ export async function POST(request: NextRequest) {
           verifiedUserEmail = userRes.user.email
             ? userRes.user.email.trim().toLowerCase()
             : "";
+          isAnonymousSession = Boolean(
+            userRes.user.is_anonymous || !verifiedUserEmail,
+          );
         }
       }
     }
 
     const effectiveEmail = email || verifiedUserEmail;
+    const isVerifiedEmailOwner = Boolean(
+      verifiedUserId &&
+        !isAnonymousSession &&
+        verifiedUserEmail &&
+        effectiveEmail === verifiedUserEmail,
+    );
 
-    if (!verifiedUserId && (!effectiveEmail || !effectiveEmail.includes("@"))) {
+    if (!isVerifiedEmailOwner && (!effectiveEmail || !effectiveEmail.includes("@"))) {
       return NextResponse.json(
         { error: "Valid email address or authenticated session required" },
         { status: 400 },
@@ -74,9 +84,9 @@ export async function POST(request: NextRequest) {
         supabase.from("drop_notify_subscriptions" as any) as any
       ).insert({
         batch_id: batchId,
-        user_id: verifiedUserId,
+        user_id: isVerifiedEmailOwner ? verifiedUserId : null,
         email: effectiveEmail || null,
-        verified: Boolean(verifiedUserId),
+        verified: isVerifiedEmailOwner,
       });
 
       // Ignore unique violation (23505) uniformly so membership is never leaked
@@ -88,17 +98,21 @@ export async function POST(request: NextRequest) {
       }
 
       if (effectiveEmail && effectiveEmail.includes("@")) {
+        const upsertOptions = isVerifiedEmailOwner
+          ? { onConflict: "email,target_type,target_id" }
+          : { onConflict: "email,target_type,target_id", ignoreDuplicates: true };
+
         const { error: subErr } = await (
           supabase.from("drop_subscriptions" as any) as any
         ).upsert(
           {
             email: effectiveEmail,
-            user_id: verifiedUserId,
+            user_id: isVerifiedEmailOwner ? verifiedUserId : null,
             target_type: "batch",
             target_id: batchId,
             is_active: true,
           },
-          { onConflict: "email,target_type,target_id" },
+          upsertOptions,
         );
 
         if (subErr) {
@@ -112,9 +126,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({
         success: true,
         persistedToDb: true,
-        verified: Boolean(verifiedUserId),
+        verified: isVerifiedEmailOwner,
         batchId,
-        subscribed: true,
+        subscribed: isVerifiedEmailOwner,
+        preservedExistingPreference: !isVerifiedEmailOwner,
       });
     }
 

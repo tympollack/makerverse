@@ -59,18 +59,22 @@ export async function getVendorBatches(brandHandle?: string): Promise<ProductBat
 
   if (supabase) {
     try {
+      const normalized = brandHandle?.toLowerCase().replace(/^@/, "");
+      const selectClause = normalized ? "*, brands!inner(slug)" : "*, brands(slug)";
       let query = (supabase.from("v_batch_lifecycle" as any) as any)
-        .select("*, brands(slug)")
+        .select(selectClause)
         .order("goes_live_at", { ascending: true });
 
-      if (brandHandle) {
-        const normalized = brandHandle.toLowerCase().replace(/^@/, "");
+      if (normalized) {
         query = query.eq("brands.slug", normalized);
       }
 
       const { data, error } = await query;
       if (!error && Array.isArray(data) && data.length > 0) {
-        return data.map(mapRowToBatch);
+        const mapped = data.map(mapRowToBatch);
+        return normalized
+          ? mapped.filter((b) => b.brandHandle.toLowerCase() === normalized)
+          : mapped;
       }
       if (error) {
         console.warn("[getVendorBatches] Database query notice:", error.message);

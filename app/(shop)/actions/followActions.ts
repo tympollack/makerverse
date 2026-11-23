@@ -62,30 +62,35 @@ async function resolveBearerToken(explicitToken?: string): Promise<string> {
 async function resolveAuthenticatedUser(
   supabase: NonNullable<ReturnType<typeof getSupabaseServiceRoleClient>>,
   explicitToken?: string,
-): Promise<{ userId: string | null; userEmail: string | null }> {
+): Promise<{ userId: string | null; userEmail: string | null; isAnonymous: boolean }> {
   const token = await resolveBearerToken(explicitToken);
   if (!token) {
-    return { userId: null, userEmail: null };
+    return { userId: null, userEmail: null, isAnonymous: true };
   }
 
   try {
     const { data, error } = await supabase.auth.getUser(token);
     if (!error && data?.user?.id) {
+      const normalizedEmail = data.user.email
+        ? data.user.email.trim().toLowerCase()
+        : null;
+      const isAnonymous = Boolean(data.user.is_anonymous || !normalizedEmail);
       return {
         userId: data.user.id,
-        userEmail: data.user.email ? data.user.email.trim().toLowerCase() : null,
+        userEmail: normalizedEmail,
+        isAnonymous,
       };
     }
   } catch {
     // Invalid or expired token -> treat as guest
   }
 
-  return { userId: null, userEmail: null };
+  return { userId: null, userEmail: null, isAnonymous: true };
 }
 
 /**
  * Fetches active drop subscriptions strictly for the verified authenticated user.
- * Never looks up preferences by unverified guest email.
+ * Never looks up preferences by unverified guest email or anonymous shopper sessions.
  */
 export async function getUserDropSubscriptions(input?: {
   authToken?: string;
@@ -96,7 +101,7 @@ export async function getUserDropSubscriptions(input?: {
   }
 
   const auth = await resolveAuthenticatedUser(supabase as any, input?.authToken);
-  if (!auth.userId) {
+  if (!auth.userId || auth.isAnonymous || !auth.userEmail) {
     return { authenticated: false, targets: [] };
   }
 
@@ -168,14 +173,20 @@ export async function upsertDropSubscription(
 
   let verifiedUserId: string | null = null;
   let verifiedUserEmail: string | null = null;
+  let isAnonymousSession = true;
 
   if (supabase) {
     const auth = await resolveAuthenticatedUser(supabase as any, input.authToken);
     verifiedUserId = auth.userId;
     verifiedUserEmail = auth.userEmail;
+    isAnonymousSession = auth.isAnonymous;
   }
 
-  if (!verifiedUserId && !isActive) {
+  const canManageOwnership = Boolean(
+    verifiedUserId && verifiedUserEmail && !isAnonymousSession,
+  );
+
+  if (!canManageOwnership && !isActive) {
     return {
       success: false,
       persistedToDb: false,
@@ -187,7 +198,7 @@ export async function upsertDropSubscription(
 
   const suppliedEmail =
     typeof input.email === "string" ? input.email.trim().toLowerCase() : "";
-  const effectiveEmail = verifiedUserEmail || suppliedEmail;
+  const effectiveEmail = canManageOwnership ? verifiedUserEmail! : suppliedEmail;
 
   if (!effectiveEmail || !EMAIL_REGEX.test(effectiveEmail)) {
     return {
@@ -200,7 +211,7 @@ export async function upsertDropSubscription(
   }
 
   if (supabase) {
-    const upsertOptions = verifiedUserId
+    const upsertOptions = canManageOwnership
       ? { onConflict: "email,target_type,target_id" }
       : { onConflict: "email,target_type,target_id", ignoreDuplicates: true };
 
@@ -208,7 +219,7 @@ export async function upsertDropSubscription(
       .upsert(
         {
           email: effectiveEmail,
-          user_id: verifiedUserId,
+          user_id: canManageOwnership ? verifiedUserId : null,
           target_type: input.targetType,
           target_id: targetId,
           is_active: isActive,
@@ -289,7 +300,7 @@ export async function deactivateDropSubscription(
   }
 
   const auth = await resolveAuthenticatedUser(supabase as any, input.authToken);
-  if (!auth.userId) {
+  if (!auth.userId || auth.isAnonymous || !auth.userEmail) {
     return {
       success: false,
       persistedToDb: false,
