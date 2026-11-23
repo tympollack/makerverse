@@ -1,7 +1,7 @@
 // components/admin/InventoryManager.tsx
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Plus,
@@ -10,22 +10,23 @@ import {
   Unlock,
   Shield,
   Cpu,
-  Search,
   CheckCircle2,
   Copy,
   Check,
   Zap,
-  Layers,
   ChevronDown,
   ChevronUp,
 } from "lucide-react";
 import { FrostedCard } from "@/components/ui/FrostedCard";
-import { MonoValue } from "@/components/ui/MonoValue";
-import { StatusBadge, ChipTierBadge } from "@/components/ui/StatusBadge";
+import { ChipTierBadge } from "@/components/ui/StatusBadge";
 import { ProductRegistrationDrawer } from "@/components/admin/ProductRegistrationDrawer";
+import { SkuMatrixTable } from "@/components/admin/SkuMatrixTable";
+import { BatchSettlementModal } from "@/components/admin/BatchSettlementModal";
 import { VersionReleaseBadge } from "@/components/admin/VersionReleaseBadge";
-import { INVENTORY_ITEMS, NFC_BATCH_QUEUE } from "@/lib/mock/adminData";
+import { IS_MOCK_ENABLED, INVENTORY_ITEMS, NFC_BATCH_QUEUE } from "@/lib/mock/adminData";
 import type { InventoryItem, NfcChipEntry, ChipLockState } from "@/lib/mock/adminData";
+import type { BatchOrderRow } from "@/lib/utils/exportBatchManifest";
+import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 
 // ─── Chip Encoder Row ─────────────────────────────────────────────────────────
@@ -257,181 +258,111 @@ function ChipEncoderCard({
   );
 }
 
-// ─── SKU Matrix Table ──────────────────────────────────────────────────────────
-
-function SKUMatrixTable({
-  items,
-  onQueueChips,
-}: {
-  items: InventoryItem[];
-  onQueueChips: (item: InventoryItem) => void;
-}) {
-  const [searchQuery, setSearchQuery] = useState("");
-  const [tierFilter, setTierFilter] = useState<string>("ALL");
-
-  const filteredItems = items.filter((item) => {
-    const matchesQuery =
-      item.sku.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      item.title.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesTier = tierFilter === "ALL" || item.chipTier === tierFilter;
-    return matchesQuery && matchesTier;
-  });
-
-  return (
-    <FrostedCard noPadding className="overflow-hidden">
-      {/* Table Header Controls */}
-      <div className="p-4 border-b border-white/8 bg-[#121212] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <Layers className="w-4 h-4 text-orange-400" />
-          <h3 className="text-xs font-mono font-bold text-white uppercase tracking-wider">
-            SKU Matrix & Stock Allocations
-          </h3>
-          <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-white/5 border border-white/8 text-white/50">
-            {filteredItems.length} SKUs Listed
-          </span>
-        </div>
-
-        <div className="flex items-center gap-3 w-full sm:w-auto">
-          {/* Search bar */}
-          <div className="relative flex-1 sm:w-56">
-            <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-white/30" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Filter SKU or title..."
-              className="w-full bg-white/5 border border-white/10 rounded-lg pl-8 pr-3 py-1.5 font-mono text-xs text-white placeholder:text-white/20 focus:outline-none focus:border-[#CC5500] transition-colors"
-            />
-          </div>
-
-          {/* Tier Selector Filter */}
-          <select
-            value={tierFilter}
-            onChange={(e) => setTierFilter(e.target.value)}
-            className="bg-white/5 border border-white/10 rounded-lg px-2.5 py-1.5 font-mono text-xs text-white/70 focus:outline-none focus:border-[#CC5500] cursor-pointer"
-          >
-            <option value="ALL" className="bg-[#181818]">All Tiers</option>
-            <option value="QR_REGISTRY" className="bg-[#181818]">QR Registry</option>
-            <option value="NTAG213_SERIALIZED" className="bg-[#181818]">NTAG213</option>
-            <option value="NTAG215_SERIALIZED" className="bg-[#181818]">NTAG215</option>
-            <option value="NTAG424_DNA" className="bg-[#181818]">NTAG424 DNA</option>
-          </select>
-        </div>
-      </div>
-
-      {/* Table Content */}
-      <div className="overflow-x-auto">
-        <table className="w-full text-left border-collapse">
-          <thead>
-            <tr className="border-b border-white/8 bg-white/2 font-mono text-[10px] text-white/40 uppercase tracking-wider">
-              <th className="py-3 px-4 font-medium">SKU & Product Title</th>
-              <th className="py-3 px-4 font-medium">Stock Capacity</th>
-              <th className="py-3 px-4 font-medium">EIP-2981 Royalty</th>
-              <th className="py-3 px-4 font-medium">Hardware Tier</th>
-              <th className="py-3 px-4 font-medium">Co-Sign</th>
-              <th className="py-3 px-4 font-medium text-right">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-white/5 text-xs">
-            {filteredItems.map((item) => {
-              const pct = item.maxStock > 0 ? (item.stock / item.maxStock) * 100 : 0;
-              const isLow = pct < 25 && pct > 0;
-              const isOut = item.stock === 0;
-
-              return (
-                <tr
-                  key={item.id}
-                  className="hover:bg-white/3 transition-colors group"
-                >
-                  {/* SKU & Title */}
-                  <td className="py-3.5 px-4">
-                    <div className="flex items-center gap-2">
-                      <MonoValue className="text-xs font-semibold text-cyan-300">
-                        {item.sku}
-                      </MonoValue>
-                      <StatusBadge variant={item.status} className="scale-90 origin-left" />
-                    </div>
-                    <p className="text-xs text-white/80 font-medium mt-0.5 truncate max-w-xs">
-                      {item.title}
-                    </p>
-                  </td>
-
-                  {/* Stock Level Progress Bar */}
-                  <td className="py-3.5 px-4 min-w-[140px]">
-                    <div className="flex items-center justify-between font-mono text-[10px] text-white/50 mb-1">
-                      <span>
-                        <strong className="text-white">{item.stock}</strong> / {item.maxStock}
-                      </span>
-                      <span>{pct.toFixed(0)}%</span>
-                    </div>
-                    <div className="h-1.5 w-full bg-white/10 rounded-full overflow-hidden">
-                      <div
-                        className={cn(
-                          "h-full rounded-full transition-all duration-300",
-                          isOut ? "bg-red-500" : isLow ? "bg-amber-500" : "bg-emerald-500",
-                        )}
-                        style={{ width: `${Math.min(100, pct)}%` }}
-                      />
-                    </div>
-                  </td>
-
-                  {/* Royalty Percentage */}
-                  <td className="py-3.5 px-4">
-                    <div className="flex items-center gap-1.5">
-                      <MonoValue glow="orange" className="text-xs font-bold">
-                        {(item.royaltyBps / 100).toFixed(1)}%
-                      </MonoValue>
-                      <span className="text-[8px] font-mono px-1 py-0.2 rounded bg-orange-500/10 text-orange-300 border border-orange-500/20">
-                        EIP-2981
-                      </span>
-                    </div>
-                  </td>
-
-                  {/* Hardware Tier */}
-                  <td className="py-3.5 px-4">
-                    <ChipTierBadge tier={item.chipTier} />
-                  </td>
-
-                  {/* Co-Sign Pill */}
-                  <td className="py-3.5 px-4">
-                    {item.coSignRequired ? (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-purple-500/15 border border-purple-500/30 text-purple-300 font-mono text-[9px] font-semibold">
-                        <Shield className="w-2.5 h-2.5" />
-                        Co-Sign Required
-                      </span>
-                    ) : (
-                      <span className="text-[10px] font-mono text-white/25">—</span>
-                    )}
-                  </td>
-
-                  {/* Quick Action */}
-                  <td className="py-3.5 px-4 text-right">
-                    <button
-                      onClick={() => onQueueChips(item)}
-                      className="px-2.5 py-1 rounded-lg bg-white/5 hover:bg-orange-500/15 border border-white/10 hover:border-orange-500/30 text-[10px] font-mono text-white/60 hover:text-orange-300 transition-all cursor-pointer"
-                      title="Queue additional NFC chips for encoding"
-                    >
-                      + Queue Chips
-                    </button>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-    </FrostedCard>
-  );
-}
-
 // ─── Main Inventory & NFC Manager Component ──────────────────────────────────
 
-export function InventoryManager() {
-  const [inventory, setInventory] = useState<InventoryItem[]>(INVENTORY_ITEMS);
-  const [chipQueue, setChipQueue] = useState<NfcChipEntry[]>(NFC_BATCH_QUEUE);
+export function InventoryManager({
+  initialItems = INVENTORY_ITEMS,
+  initialChips = NFC_BATCH_QUEUE,
+  initialOrdersBySku = {},
+}: {
+  initialItems?: InventoryItem[];
+  initialChips?: NfcChipEntry[];
+  initialOrdersBySku?: Record<string, BatchOrderRow[]>;
+} = {}) {
+  const [inventory, setInventory] = useState<InventoryItem[]>(initialItems);
+  const [chipQueue, setChipQueue] = useState<NfcChipEntry[]>(initialChips);
+  const [ordersBySku, setOrdersBySku] = useState<Record<string, BatchOrderRow[]>>(
+    initialOrdersBySku,
+  );
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [draftKey, setDraftKey] = useState(0);
+  const [draftTemplate, setDraftTemplate] = useState<Partial<InventoryItem> | null>(null);
+  const [manifestItem, setManifestItem] = useState<InventoryItem | null>(null);
   const [isEncodingBatch, setIsEncodingBatch] = useState(false);
   const [encodeSuccessNotice, setEncodeSuccessNotice] = useState(false);
+
+  useEffect(() => {
+    const sb = getSupabaseBrowserClient();
+    if (!sb || typeof fetch !== "function") return;
+
+    let active = true;
+    async function hydrateAuthenticatedInventory() {
+      try {
+        const { data } = await sb!.auth.getSession();
+        const token = data?.session?.access_token;
+        if (!token || !active) return;
+
+        const res = await fetch("/api/admin/inventory?includeOrders=1", {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok || !active) return;
+        const payload = await res.json();
+        if (Array.isArray(payload?.items) && payload.items.length > 0) {
+          setInventory(payload.items);
+        }
+        if (payload?.ordersBySku && typeof payload.ordersBySku === "object") {
+          setOrdersBySku(payload.ordersBySku);
+        }
+      } catch {
+        // Retain SSR initialItems/initialOrdersBySku if refresh fails
+      }
+    }
+
+    void hydrateAuthenticatedInventory();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const handleOpenFreshRegister = () => {
+    setDraftTemplate(null);
+    setDraftKey((k) => k + 1);
+    setDrawerOpen(true);
+  };
+
+  const handleCloneItem = (item: InventoryItem) => {
+    setDraftTemplate({
+      title: `${item.title} (Copy)`,
+      sku: `${item.sku}-CLN`,
+      stock: item.maxStock,
+      maxStock: item.maxStock,
+      priceCents: item.priceCents ?? 2500,
+      royaltyBps: item.royaltyBps,
+      chipTier: item.chipTier,
+      coSignRequired: item.coSignRequired,
+      versionTag: item.versionTag ?? "v1.0",
+      artistAttribution: item.artistAttribution,
+      parentSku: item.parentSku,
+      frontChestStamp: item.frontChestStamp,
+      backStatement: item.backStatement,
+      auctionEnabled: item.auctionEnabled,
+      durationHours: item.durationHours,
+    });
+    setDraftKey((k) => k + 1);
+    setDrawerOpen(true);
+  };
+
+  const handleGraduateItem = (item: InventoryItem) => {
+    setDraftTemplate({
+      title: `${item.title.replace(/\s*\(v2\.0\)$/i, "")} (v2.0)`,
+      sku: `${item.sku}-V2`,
+      stock: item.maxStock,
+      maxStock: item.maxStock,
+      priceCents: item.priceCents ?? 2500,
+      royaltyBps: item.royaltyBps,
+      chipTier: item.chipTier,
+      coSignRequired: true,
+      versionTag: "v2.0",
+      artistAttribution: item.artistAttribution ?? "",
+      parentSku: item.sku,
+      frontChestStamp: item.frontChestStamp,
+      backStatement: item.backStatement,
+      auctionEnabled: item.auctionEnabled,
+      durationHours: item.durationHours,
+    });
+    setDraftKey((k) => k + 1);
+    setDrawerOpen(true);
+  };
 
   // Soft-Lock Cycle Handler: UNLOCKED -> PASSWORD_PROTECTED -> LOCKED_BITS
   const handleCycleLock = (uid: string) => {
@@ -601,7 +532,7 @@ export function InventoryManager() {
         </div>
 
         <button
-          onClick={() => setDrawerOpen(true)}
+          onClick={handleOpenFreshRegister}
           className="btn-cta flex items-center gap-2 text-xs uppercase tracking-wider font-bold shadow-[0_0_20px_rgba(204,85,0,0.35)] cursor-pointer"
         >
           <Plus className="w-4 h-4" />
@@ -632,7 +563,14 @@ export function InventoryManager() {
       </div>
 
       {/* Section 1: SKU Matrix Table */}
-      <SKUMatrixTable items={inventory} onQueueChips={handleQueueChipsForSku} />
+      <SkuMatrixTable
+        items={inventory}
+        onQueueChips={handleQueueChipsForSku}
+        onOpenRegister={handleOpenFreshRegister}
+        onCloneItem={handleCloneItem}
+        onGraduateItem={handleGraduateItem}
+        onOpenManifest={(item) => setManifestItem(item)}
+      />
 
       {/* Section 2: Batch NFC Chip Encoder Panel */}
       <div className="space-y-4">
@@ -669,25 +607,55 @@ export function InventoryManager() {
         </div>
 
         {/* Visual Matrix Grid of Batch Chips */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {chipQueue.map((chip, i) => (
-            <ChipEncoderCard
-              key={chip.uid}
-              chip={chip}
-              index={i}
-              onCycleLock={handleCycleLock}
-              onToggleFerrite={handleToggleFerrite}
-              onGenerateCmac={handleGenerateSingleCmac}
-            />
-          ))}
-        </div>
+        {chipQueue.length === 0 ? (
+          <FrostedCard className="p-8 text-center space-y-2">
+            <Cpu className="w-8 h-8 text-cyan-400/40 mx-auto" />
+            <p className="text-sm font-semibold text-white/80">
+              No NFC chips queued for encoding
+            </p>
+            <p className="text-xs font-mono text-white/40 max-w-md mx-auto">
+              Register your first physical piece or batch above to queue NTAG213 or NTAG424 DNA hardware tags.
+            </p>
+          </FrostedCard>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {chipQueue.map((chip, i) => (
+              <ChipEncoderCard
+                key={chip.uid}
+                chip={chip}
+                index={i}
+                onCycleLock={handleCycleLock}
+                onToggleFerrite={handleToggleFerrite}
+                onGenerateCmac={handleGenerateSingleCmac}
+              />
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Product Registration Slide-Over Drawer */}
       <ProductRegistrationDrawer
+        key={draftKey}
         isOpen={drawerOpen}
-        onClose={() => setDrawerOpen(false)}
+        onClose={() => {
+          setDrawerOpen(false);
+          setDraftTemplate(null);
+        }}
         onRegisterProduct={handleRegisterProduct}
+        initialDraft={draftTemplate}
+      />
+
+      {/* Batch Settlement & Pirate Ship / NFC Manifest Export Modal */}
+      <BatchSettlementModal
+        item={manifestItem}
+        chips={chipQueue}
+        realOrders={
+          manifestItem
+            ? ordersBySku[manifestItem.sku.toUpperCase()] ??
+              (IS_MOCK_ENABLED ? undefined : [])
+            : undefined
+        }
+        onClose={() => setManifestItem(null)}
       />
     </div>
   );

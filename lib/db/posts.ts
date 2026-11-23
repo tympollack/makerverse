@@ -1,13 +1,19 @@
 // lib/db/posts.ts
 import { getSupabaseServerClient } from "@/lib/supabase/server";
-import { getPostsByBrandHandle, SHOPPABLE_POSTS, type ShoppablePost } from "@/lib/mock/shopData";
+import {
+  getPostsByBrandHandle,
+  IS_MOCK_ENABLED,
+  type ShoppablePost,
+} from "@/lib/mock/shopData";
 
 /**
  * Fetch shoppable spatial scenes with pinned product coordinates.
  */
 export async function getShoppablePosts(brandHandle?: string): Promise<ShoppablePost[]> {
   const supabase = getSupabaseServerClient();
-  const normalized = (brandHandle || "forge-collective").toLowerCase().replace(/^@/, "");
+  const normalized = (brandHandle || (IS_MOCK_ENABLED ? "forge-collective" : ""))
+    .toLowerCase()
+    .replace(/^@/, "");
 
   if (supabase) {
     try {
@@ -38,7 +44,7 @@ export async function getShoppablePosts(brandHandle?: string): Promise<Shoppable
 
       const { data, error } = await query;
 
-      if (!error && data && data.length > 0) {
+      if (!error && data) {
         return data.map((post: any) => ({
           id: post.id,
           brandId: post.brand_id,
@@ -55,10 +61,14 @@ export async function getShoppablePosts(brandHandle?: string): Promise<Shoppable
           })),
         }));
       }
+
+      if (error) {
+        console.warn("[getShoppablePosts] Database query error, falling back:", error.message);
+      }
     } catch (err) {
-      console.warn("[getShoppablePosts] Falling back to real local dataset:", err);
+      console.warn("[getShoppablePosts] Database query error:", err);
     }
   }
 
-  return getPostsByBrandHandle(normalized);
+  return IS_MOCK_ENABLED ? getPostsByBrandHandle(normalized) : [];
 }

@@ -1,10 +1,15 @@
 // lib/db/brands.ts
 import { getSupabaseServerClient } from "@/lib/supabase/server";
-import { ALL_BRANDS, BRAND_PASSPORT, type BrandPassport } from "@/lib/mock/shopData";
+import {
+  ALL_BRANDS,
+  BRAND_PASSPORT,
+  IS_MOCK_ENABLED,
+  type BrandPassport,
+} from "@/lib/mock/shopData";
 
 /**
  * Fetch a brand passport by its unique URL-safe slug / handle.
- * Queries Supabase staging DB if configured; otherwise seamlessly falls back to real multi-brand datasets.
+ * Queries Supabase staging DB if configured; falls back to mock datasets only when IS_MOCK_ENABLED is true.
  */
 export async function getBrand(handle: string): Promise<BrandPassport | null> {
   const normalized = handle.toLowerCase().replace(/^@/, "");
@@ -24,27 +29,37 @@ export async function getBrand(handle: string): Promise<BrandPassport | null> {
           handle: brandRow.slug,
           name: brandRow.name,
           bio: brandRow.bio || "",
-          avatarUrl: brandRow.logo_url || "/mock/forge-avatar.jpg",
-          bannerUrl: brandRow.banner_url || "/mock/forge-banner.jpg",
+          avatarUrl: brandRow.logo_url || "",
+          bannerUrl: brandRow.banner_url || "",
           isVerified: brandRow.verified_badge,
           ledgerAddress: brandRow.ledger_address || "0x0000000000000000000000000000000000000000",
-          followerCount: 1847,
-          productCount: 6,
+          followerCount: brandRow.follower_count ?? 0,
+          productCount: brandRow.product_count ?? 0,
           totalRoyaltiesEarned: brandRow.total_royalties_cents || 0,
-          memberSince: new Date(brandRow.created_at).toLocaleDateString("en-US", { month: "long", year: "numeric" }),
-          studioLocation: brandRow.studio_location || "Portland, Oregon · USA",
+          memberSince: new Date(brandRow.created_at).toLocaleDateString("en-US", {
+            month: "long",
+            year: "numeric",
+          }),
+          studioLocation: brandRow.studio_location || "",
           tags: brandRow.tags || [],
         };
       }
     } catch (err) {
-      console.warn("[getBrand] Falling back to real local dataset due to database error:", err);
+      console.warn("[getBrand] Database query error:", err);
     }
   }
 
-  // Fallback to local real dataset
+  if (!IS_MOCK_ENABLED) {
+    return null;
+  }
+
   const match = ALL_BRANDS.find((b) => b.handle.toLowerCase() === normalized);
   if (match) return match;
-  if (normalized === "forge" || normalized === "the-forge-collective" || normalized === "the-forge") {
+  if (
+    normalized === "forge" ||
+    normalized === "the-forge-collective" ||
+    normalized === "the-forge"
+  ) {
     return BRAND_PASSPORT;
   }
   return null;
@@ -62,28 +77,35 @@ export async function getAllBrands(): Promise<BrandPassport[]> {
         .select("*")
         .order("created_at", { ascending: true });
 
-      if (!error && data && data.length > 0) {
+      if (!error && data) {
         return data.map((b: any) => ({
           id: b.id,
           handle: b.slug,
           name: b.name,
           bio: b.bio || "",
-          avatarUrl: b.logo_url || "/mock/forge-avatar.jpg",
-          bannerUrl: b.banner_url || "/mock/forge-banner.jpg",
+          avatarUrl: b.logo_url || "",
+          bannerUrl: b.banner_url || "",
           isVerified: b.verified_badge,
           ledgerAddress: b.ledger_address || "0x0000000000000000000000000000000000000000",
-          followerCount: 1847,
-          productCount: 6,
+          followerCount: b.follower_count ?? 0,
+          productCount: b.product_count ?? 0,
           totalRoyaltiesEarned: b.total_royalties_cents || 0,
-          memberSince: new Date(b.created_at).toLocaleDateString("en-US", { month: "long", year: "numeric" }),
-          studioLocation: b.studio_location || "Portland, Oregon · USA",
+          memberSince: new Date(b.created_at).toLocaleDateString("en-US", {
+            month: "long",
+            year: "numeric",
+          }),
+          studioLocation: b.studio_location || "",
           tags: b.tags || [],
         }));
       }
+
+      if (error) {
+        console.warn("[getAllBrands] Database query error, falling back:", error.message);
+      }
     } catch (err) {
-      console.warn("[getAllBrands] Falling back to real local dataset:", err);
+      console.warn("[getAllBrands] Database query error:", err);
     }
   }
 
-  return ALL_BRANDS;
+  return IS_MOCK_ENABLED ? ALL_BRANDS : [];
 }

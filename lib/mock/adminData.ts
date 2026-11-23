@@ -3,9 +3,23 @@
 
 import { type ChipTier } from "./shopData";
 
+export const IS_MOCK_ENABLED =
+  process.env.NODE_ENV !== "production" && process.env.NEXT_PUBLIC_USE_MOCKS === "true";
+
 // ─── Ecosystem Telemetry ──────────────────────────────────────────────────────
 
-export const TELEMETRY = {
+const EMPTY_TELEMETRY = {
+  activeFollowers: 0,
+  secondaryRoyaltiesTotal: 0,
+  secondaryRoyaltiesThisMonth: 0,
+  mtdRevenue: 0,
+  edgeNodeStatus: "ONLINE" as "ONLINE" | "CONNECTED" | "DEGRADED" | "OFFLINE",
+  edgeNodeLatencyMs: 0,
+  pendingMints: 0,
+  activeSessions: 0,
+};
+
+const MOCK_TELEMETRY = {
   activeFollowers: 1_847,
   secondaryRoyaltiesTotal: 284_50, // cents ($284.50)
   secondaryRoyaltiesThisMonth: 63_20, // cents ($63.20)
@@ -15,6 +29,8 @@ export const TELEMETRY = {
   pendingMints: 3,
   activeSessions: 11,
 };
+
+export const TELEMETRY = IS_MOCK_ENABLED ? MOCK_TELEMETRY : EMPTY_TELEMETRY;
 
 // ─── Inventory Items ──────────────────────────────────────────────────────────
 
@@ -26,14 +42,22 @@ export interface InventoryItem {
   title: string;
   stock: number;
   maxStock: number;
+  priceCents?: number;
   royaltyBps: number;
   chipTier: ChipTier;
   coSignRequired: boolean;
   status: StockStatus;
   lastUpdated: string;
+  versionTag?: string;
+  artistAttribution?: string;
+  parentSku?: string;
+  frontChestStamp?: string;
+  backStatement?: string;
+  auctionEnabled?: boolean;
+  durationHours?: number | null;
 }
 
-export const INVENTORY_ITEMS: InventoryItem[] = [
+const MOCK_INVENTORY_ITEMS: InventoryItem[] = [
   {
     id: "inv_001",
     sku: "FC-BLT-K1-001",
@@ -96,6 +120,8 @@ export const INVENTORY_ITEMS: InventoryItem[] = [
   },
 ];
 
+export const INVENTORY_ITEMS: InventoryItem[] = IS_MOCK_ENABLED ? MOCK_INVENTORY_ITEMS : [];
+
 // ─── NFC Chip Batch Queue ─────────────────────────────────────────────────────
 
 export type ChipLockState = "UNLOCKED" | "PASSWORD_PROTECTED" | "LOCKED_BITS" | "LOCK_BITS_SET";
@@ -110,7 +136,7 @@ export interface NfcChipEntry {
   encodedAt: string | null;
 }
 
-export const NFC_BATCH_QUEUE: NfcChipEntry[] = [
+const MOCK_NFC_BATCH_QUEUE: NfcChipEntry[] = [
   {
     uid: "04:A3:F2:11:8E:2C:80",
     cmac: "3A9F1C2E4B8D7F60",
@@ -158,6 +184,8 @@ export const NFC_BATCH_QUEUE: NfcChipEntry[] = [
   },
 ];
 
+export const NFC_BATCH_QUEUE: NfcChipEntry[] = IS_MOCK_ENABLED ? MOCK_NFC_BATCH_QUEUE : [];
+
 // ─── Active Hold Reservations ─────────────────────────────────────────────────
 
 export type HoldState = "ACTIVE_HOLD" | "PAYMENT_RETRYING" | "EXPIRED_RELEASE";
@@ -179,7 +207,7 @@ export interface HoldEntry {
 
 const NOW = Date.now();
 
-export const ACTIVE_HOLDS: HoldEntry[] = [
+const MOCK_ACTIVE_HOLDS: HoldEntry[] = [
   {
     holdId: "hold_7f3a1b2c-d4e5-4f6a-8b9c-0d1e2f3a4b5c",
     redisKey: "makerverse:hold:7f3a1b2c-d4e5-4f6a-8b9c-0d1e2f3a4b5c",
@@ -235,6 +263,8 @@ export const ACTIVE_HOLDS: HoldEntry[] = [
   },
 ];
 
+export const ACTIVE_HOLDS: HoldEntry[] = IS_MOCK_ENABLED ? MOCK_ACTIVE_HOLDS : [];
+
 // ─── POS Transaction Log ──────────────────────────────────────────────────────
 
 export type POSMode = "HIGH_TOUCH" | "LOW_TOUCH";
@@ -258,7 +288,7 @@ export interface POSTransaction {
   qrScanned: boolean;
 }
 
-export const POS_TRANSACTIONS: POSTransaction[] = [
+const MOCK_POS_TRANSACTIONS: POSTransaction[] = [
   {
     txId: "pos_tx_001",
     mode: "HIGH_TOUCH",
@@ -313,6 +343,8 @@ export const POS_TRANSACTIONS: POSTransaction[] = [
   },
 ];
 
+export const POS_TRANSACTIONS: POSTransaction[] = IS_MOCK_ENABLED ? MOCK_POS_TRANSACTIONS : [];
+
 // ─── Booth Installations & Interactive Engine ─────────────────────────────────
 
 export interface BoothInstallation {
@@ -329,7 +361,7 @@ export interface BoothInstallation {
   readerModel: string;
 }
 
-export const MOCK_INSTALLATIONS: BoothInstallation[] = [
+const MOCK_INSTALLATIONS_DATA: BoothInstallation[] = [
   {
     id: "inst_001",
     name: "Booth 14 — Portland Saturday Market",
@@ -371,6 +403,8 @@ export const MOCK_INSTALLATIONS: BoothInstallation[] = [
   },
 ];
 
+export const MOCK_INSTALLATIONS: BoothInstallation[] = IS_MOCK_ENABLED ? MOCK_INSTALLATIONS_DATA : [];
+
 // ─── Guestbook Mode Data ──────────────────────────────────────────────────────
 
 export type AttendeeTier = "COZY_MEMBER" | "VERIFIED_MAKER" | "VIP_COLLECTOR" | "GUEST";
@@ -390,7 +424,7 @@ export interface GuestbookEntry {
   badgeEarned?: string;
 }
 
-export const INITIAL_GUESTBOOK_ENTRIES: GuestbookEntry[] = [
+const MOCK_INITIAL_GUESTBOOK_ENTRIES: GuestbookEntry[] = [
   {
     id: "gb_001",
     attendeeHandle: "@ironwood_maren",
@@ -456,6 +490,10 @@ export const INITIAL_GUESTBOOK_ENTRIES: GuestbookEntry[] = [
   },
 ];
 
+export const INITIAL_GUESTBOOK_ENTRIES: GuestbookEntry[] = IS_MOCK_ENABLED
+  ? MOCK_INITIAL_GUESTBOOK_ENTRIES
+  : [];
+
 // ─── Raffle Rub Mode Data ─────────────────────────────────────────────────────
 
 export interface RaffleRewardTier {
@@ -468,7 +506,7 @@ export interface RaffleRewardTier {
   badge: string;
 }
 
-export const RAFFLE_REWARD_TIERS: RaffleRewardTier[] = [
+const MOCK_RAFFLE_REWARD_TIERS: RaffleRewardTier[] = [
   {
     id: "tier_grand",
     name: "Grand Prize: Gen 1 Copper Keyring (Free)",
@@ -498,6 +536,10 @@ export const RAFFLE_REWARD_TIERS: RaffleRewardTier[] = [
   },
 ];
 
+export const RAFFLE_REWARD_TIERS: RaffleRewardTier[] = IS_MOCK_ENABLED
+  ? MOCK_RAFFLE_REWARD_TIERS
+  : [];
+
 export interface RaffleAttempt {
   id: string;
   attendeeHandle: string;
@@ -510,7 +552,7 @@ export interface RaffleAttempt {
   qrPayload?: string;
 }
 
-export const INITIAL_RAFFLE_ATTEMPTS: RaffleAttempt[] = [
+const MOCK_INITIAL_RAFFLE_ATTEMPTS: RaffleAttempt[] = [
   {
     id: "raf_001",
     attendeeHandle: "@ironwood_maren",
@@ -559,3 +601,7 @@ export const INITIAL_RAFFLE_ATTEMPTS: RaffleAttempt[] = [
     qrPayload: "mv://reward/MV-GOLD-KEY-99F7A1",
   },
 ];
+
+export const INITIAL_RAFFLE_ATTEMPTS: RaffleAttempt[] = IS_MOCK_ENABLED
+  ? MOCK_INITIAL_RAFFLE_ATTEMPTS
+  : [];

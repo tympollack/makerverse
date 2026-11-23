@@ -3,63 +3,72 @@ import React from "react";
 import { cleanup } from "@testing-library/react";
 import { afterEach, vi } from "vitest";
 
+// Enable mock datasets during test runs unless explicitly disabled
+if (process.env.NEXT_PUBLIC_USE_MOCKS === undefined) {
+  process.env.NEXT_PUBLIC_USE_MOCKS = "true";
+}
+
 // Automatically cleanup after each test
 afterEach(() => {
   cleanup();
   vi.clearAllMocks();
 });
 
-// Mock window.matchMedia
-Object.defineProperty(window, "matchMedia", {
-  writable: true,
-  value: vi.fn().mockImplementation((query: string) => ({
-    matches: false,
-    media: query,
-    onchange: null,
-    addListener: vi.fn(),
-    removeListener: vi.fn(),
-    addEventListener: vi.fn(),
-    removeEventListener: vi.fn(),
-    dispatchEvent: vi.fn(),
-  })),
-});
+// Mock window APIs only in browser-like environments (skipped for @vitest-environment node)
+if (typeof window !== "undefined") {
+  Object.defineProperty(window, "matchMedia", {
+    writable: true,
+    value: vi.fn().mockImplementation((query: string) => ({
+      matches: false,
+      media: query,
+      onchange: null,
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    })),
+  });
 
-// Mock IntersectionObserver
-class MockIntersectionObserver {
-  observe = vi.fn();
-  unobserve = vi.fn();
-  disconnect = vi.fn();
-}
-Object.defineProperty(window, "IntersectionObserver", {
-  writable: true,
-  configurable: true,
-  value: MockIntersectionObserver,
-});
-
-// Mock ResizeObserver
-class MockResizeObserver {
-  observe = vi.fn();
-  unobserve = vi.fn();
-  disconnect = vi.fn();
-}
-Object.defineProperty(window, "ResizeObserver", {
-  writable: true,
-  configurable: true,
-  value: MockResizeObserver,
-});
-
-// Mock navigator.clipboard
-if (!navigator.clipboard) {
-  Object.defineProperty(navigator, "clipboard", {
-    value: {
-      writeText: vi.fn().mockResolvedValue(undefined),
-      readText: vi.fn().mockResolvedValue(""),
-    },
+  // Mock IntersectionObserver
+  class MockIntersectionObserver {
+    observe = vi.fn();
+    unobserve = vi.fn();
+    disconnect = vi.fn();
+  }
+  Object.defineProperty(window, "IntersectionObserver", {
     writable: true,
     configurable: true,
+    value: MockIntersectionObserver,
   });
-} else {
-  vi.spyOn(navigator.clipboard, "writeText").mockImplementation(() => Promise.resolve());
+
+  // Mock ResizeObserver
+  class MockResizeObserver {
+    observe = vi.fn();
+    unobserve = vi.fn();
+    disconnect = vi.fn();
+  }
+  Object.defineProperty(window, "ResizeObserver", {
+    writable: true,
+    configurable: true,
+    value: MockResizeObserver,
+  });
+}
+
+// Mock navigator.clipboard
+if (typeof navigator !== "undefined") {
+  if (!navigator.clipboard) {
+    Object.defineProperty(navigator, "clipboard", {
+      value: {
+        writeText: vi.fn().mockResolvedValue(undefined),
+        readText: vi.fn().mockResolvedValue(""),
+      },
+      writable: true,
+      configurable: true,
+    });
+  } else {
+    vi.spyOn(navigator.clipboard, "writeText").mockImplementation(() => Promise.resolve());
+  }
 }
 
 // Mock framer-motion for fast, deterministic unit test rendering using React.createElement

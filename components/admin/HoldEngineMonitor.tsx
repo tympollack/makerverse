@@ -4,36 +4,14 @@
 import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  RefreshCw,
-  AlertCircle,
-  CheckCircle2,
-  XCircle,
-  Clock,
-  User,
-  Hash,
-  Package,
-  Plus,
-  Play,
-  Pause,
-  Copy,
-  Check,
-  ChevronDown,
-  ChevronRight,
-  Sparkles,
-  Zap,
-  Activity,
-  Code2,
-  X,
-  RotateCcw,
-  ShoppingBag,
+  RefreshCw, AlertCircle, CheckCircle2, XCircle, Clock, User, Hash, Package, Plus, Play, Pause, Copy, Check, ChevronDown, ChevronRight, Sparkles, Zap, Activity, Code2, X, RotateCcw, ShoppingBag,
 } from "lucide-react";
 import { FrostedCard } from "@/components/ui/FrostedCard";
 import { MonoValue } from "@/components/ui/MonoValue";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { CountdownTimer, TTLBar, formatTTL } from "@/components/ui/CountdownTimer";
 import { VersionReleaseBadge } from "@/components/admin/VersionReleaseBadge";
-import { ACTIVE_HOLDS } from "@/lib/mock/adminData";
-import type { HoldEntry, HoldState } from "@/lib/mock/adminData";
+import { ACTIVE_HOLDS, IS_MOCK_ENABLED, type HoldEntry, type HoldState } from "@/lib/mock/adminData";
 import { cn } from "@/lib/utils";
 import { ModalShell } from "@digitalcanopy/ui";
 
@@ -56,7 +34,7 @@ export interface StreamEventItem {
   payload: Record<string, unknown>;
 }
 
-const INITIAL_EVENTS: StreamEventItem[] = [
+const MOCK_INITIAL_EVENTS: StreamEventItem[] = [
   {
     id: "evt_101",
     time: "14:08:22",
@@ -144,6 +122,7 @@ const INITIAL_EVENTS: StreamEventItem[] = [
     },
   },
 ];
+const INITIAL_EVENTS: StreamEventItem[] = IS_MOCK_ENABLED ? MOCK_INITIAL_EVENTS : [];
 
 const EVENT_CONFIG: Record<
   StreamEventItem["event_type"],
@@ -666,9 +645,15 @@ function EventStreamLog({
 
 // ─── Main Component: HoldEngineMonitor ─────────────────────────────────────────
 
-export function HoldEngineMonitor() {
-  const [holds, setHolds] = useState<HoldEntry[]>(ACTIVE_HOLDS);
-  const [events, setEvents] = useState<StreamEventItem[]>(INITIAL_EVENTS);
+export function HoldEngineMonitor({
+  initialHolds = ACTIVE_HOLDS,
+  initialEvents = INITIAL_EVENTS,
+}: {
+  initialHolds?: HoldEntry[];
+  initialEvents?: StreamEventItem[];
+} = {}) {
+  const [holds, setHolds] = useState<HoldEntry[]>(initialHolds);
+  const [events, setEvents] = useState<StreamEventItem[]>(initialEvents);
   const [filter, setFilter] = useState<HoldState | "ALL">("ALL");
   const [searchQuery, setSearchQuery] = useState("");
   const [isStreaming, setIsStreaming] = useState(true);
@@ -1006,10 +991,11 @@ export function HoldEngineMonitor() {
 
         <AnimatePresence mode="popLayout">
           {filteredHolds.length === 0 ? (
-            <div className="p-12 text-center space-y-2">
-              <Package className="w-8 h-8 text-white/20 mx-auto" />
-              <p className="text-xs font-mono text-white/40">
-                No active reservations matching current filter
+            <div className="p-10 text-center space-y-1.5">
+              <Clock className="w-8 h-8 text-orange-400/40 mx-auto" />
+              <p className="text-sm font-semibold text-white/85">No active 10-minute holds</p>
+              <p className="text-xs font-mono text-white/40 max-w-md mx-auto">
+                Atomic 600s Redis TTL reservations and live checkout locks will stream here automatically.
               </p>
             </div>
           ) : (

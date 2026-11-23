@@ -1,6 +1,8 @@
 // lib/db/admin.ts
-import { getSupabaseServerClient } from "@/lib/supabase/server";
+import { getSupabaseServerClient, getSupabaseServiceRoleClient } from "@/lib/supabase/server";
+import type { BatchOrderRow } from "@/lib/utils/exportBatchManifest";
 import {
+  IS_MOCK_ENABLED,
   TELEMETRY,
   INVENTORY_ITEMS,
   NFC_BATCH_QUEUE,
@@ -37,36 +39,58 @@ export async function getAdminInventory(): Promise<InventoryItem[]> {
   const supabase = getSupabaseServerClient();
   if (supabase) {
     try {
-      const { data: products } = await (supabase.from("products" as any) as any)
+      const { data: products, error } = await (supabase.from("products" as any) as any)
         .select("*")
         .order("created_at", { ascending: false });
 
-      if (products && products.length > 0) {
-        return products.map((p: any) => ({
-          id: p.id,
-          sku: p.sku,
-          title: p.title,
-          chipTier: p.hardware_tier === "NTAG424_DNA_CMAC" ? "NTAG424_DNA" : p.hardware_tier,
-          stock: p.stock_quantity,
-          maxStock: p.max_stock || 24,
-          royaltyBps: Math.round((p.secondary_royalty_pct || 7.5) * 100),
-          status: p.stock_quantity === 0 ? "OUT_OF_STOCK" : p.stock_quantity <= 3 ? "LOW_STOCK" : "IN_STOCK",
-          coSignRequired: p.co_sign_required,
-          lastUpdated: p.updated_at || p.created_at,
-        }));
+      if (!error && products) {
+        return products.map((p: any) => {
+          const spec =
+            p.hardware_spec && typeof p.hardware_spec === "object"
+              ? p.hardware_spec
+              : {};
+          return {
+            id: p.id,
+            sku: p.sku,
+            title: p.title,
+            chipTier:
+              p.hardware_tier === "NTAG424_DNA_CMAC"
+                ? "NTAG424_DNA"
+                : p.hardware_tier,
+            stock: p.stock_quantity,
+            maxStock: p.max_stock || 24,
+            priceCents: p.price_cents ?? 2500,
+            royaltyBps: Math.round((p.secondary_royalty_pct || 7.5) * 100),
+            status:
+              p.stock_quantity === 0
+                ? "OUT_OF_STOCK"
+                : p.stock_quantity <= 3
+                  ? "LOW_STOCK"
+                  : "IN_STOCK",
+            coSignRequired: p.co_sign_required,
+            lastUpdated: p.updated_at || p.created_at,
+            versionTag: spec.versionTag || undefined,
+            artistAttribution: spec.artistAttribution || undefined,
+            parentSku: spec.parentSku || undefined,
+            frontChestStamp: spec.frontChestStamp || undefined,
+            backStatement: spec.backStatement || undefined,
+            auctionEnabled: Boolean(spec.auctionEnabled),
+            durationHours: spec.durationHours ?? null,
+          };
+        });
       }
     } catch (err) {
       console.warn("[getAdminInventory] Inventory fallback:", err);
     }
   }
-  return INVENTORY_ITEMS;
+  return IS_MOCK_ENABLED ? INVENTORY_ITEMS : [];
 }
 
 export async function getAdminNfcBatchQueue(): Promise<NfcChipEntry[]> {
   const supabase = getSupabaseServerClient();
   if (supabase) {
     try {
-      const { data: chips } = await (supabase.from("physical_chips" as any) as any)
+      const { data: chips, error } = await (supabase.from("physical_chips" as any) as any)
         .select(`
           uid,
           lock_status,
@@ -80,7 +104,7 @@ export async function getAdminNfcBatchQueue(): Promise<NfcChipEntry[]> {
         `)
         .order("created_at", { ascending: false });
 
-      if (chips && chips.length > 0) {
+      if (!error && chips) {
         return chips.map((c: any) => {
           const product = c.products || {};
           const meta = typeof c.metadata === "object" ? c.metadata : {};
@@ -99,14 +123,14 @@ export async function getAdminNfcBatchQueue(): Promise<NfcChipEntry[]> {
       console.warn("[getAdminNfcBatchQueue] Queue fallback:", err);
     }
   }
-  return NFC_BATCH_QUEUE;
+  return IS_MOCK_ENABLED ? NFC_BATCH_QUEUE : [];
 }
 
 export async function getAdminActiveHolds(): Promise<HoldEntry[]> {
   const supabase = getSupabaseServerClient();
   if (supabase) {
     try {
-      const { data: holds } = await (supabase.from("cart_holds" as any) as any)
+      const { data: holds, error } = await (supabase.from("cart_holds" as any) as any)
         .select(`
           id,
           product_id,
@@ -120,9 +144,10 @@ export async function getAdminActiveHolds(): Promise<HoldEntry[]> {
           )
         `)
         .eq("status", "ACTIVE_HOLD")
+        .gt("expires_at", new Date().toISOString())
         .order("created_at", { ascending: false });
 
-      if (holds && holds.length > 0) {
+      if (!error && holds) {
         return holds.map((h: any) => {
           const product = h.products || {};
           const expiresMs = new Date(h.expires_at).getTime();
@@ -146,18 +171,18 @@ export async function getAdminActiveHolds(): Promise<HoldEntry[]> {
       console.warn("[getAdminActiveHolds] Holds fallback:", err);
     }
   }
-  return ACTIVE_HOLDS;
+  return IS_MOCK_ENABLED ? ACTIVE_HOLDS : [];
 }
 
 export async function getAdminPOSTransactions(): Promise<POSTransaction[]> {
   const supabase = getSupabaseServerClient();
   if (supabase) {
     try {
-      const { data: txs } = await (supabase.from("pos_transactions" as any) as any)
+      const { data: txs, error } = await (supabase.from("pos_transactions" as any) as any)
         .select("*")
         .order("created_at", { ascending: false });
 
-      if (txs && txs.length > 0) {
+      if (!error && txs) {
         return txs.map((t: any) => ({
           txId: t.id,
           mode: t.mode,
@@ -176,18 +201,18 @@ export async function getAdminPOSTransactions(): Promise<POSTransaction[]> {
       console.warn("[getAdminPOSTransactions] POS fallback:", err);
     }
   }
-  return POS_TRANSACTIONS;
+  return IS_MOCK_ENABLED ? POS_TRANSACTIONS : [];
 }
 
 export async function getAdminInstallations(): Promise<BoothInstallation[]> {
   const supabase = getSupabaseServerClient();
   if (supabase) {
     try {
-      const { data: installations } = await (supabase.from("booth_installations" as any) as any)
+      const { data: installations, error } = await (supabase.from("booth_installations" as any) as any)
         .select("*")
         .order("created_at", { ascending: true });
 
-      if (installations && installations.length > 0) {
+      if (!error && installations) {
         return installations.map((i: any) => ({
           id: i.id,
           name: i.name,
@@ -206,18 +231,18 @@ export async function getAdminInstallations(): Promise<BoothInstallation[]> {
       console.warn("[getAdminInstallations] Installations fallback:", err);
     }
   }
-  return MOCK_INSTALLATIONS;
+  return IS_MOCK_ENABLED ? MOCK_INSTALLATIONS : [];
 }
 
 export async function getAdminGuestbook(): Promise<GuestbookEntry[]> {
   const supabase = getSupabaseServerClient();
   if (supabase) {
     try {
-      const { data: entries } = await (supabase.from("guestbook_entries" as any) as any)
+      const { data: entries, error } = await (supabase.from("guestbook_entries" as any) as any)
         .select("*")
         .order("created_at", { ascending: false });
 
-      if (entries && entries.length > 0) {
+      if (!error && entries) {
         return entries.map((e: any) => ({
           id: e.id,
           attendeeHandle: e.attendee_handle,
@@ -236,18 +261,18 @@ export async function getAdminGuestbook(): Promise<GuestbookEntry[]> {
       console.warn("[getAdminGuestbook] Guestbook fallback:", err);
     }
   }
-  return INITIAL_GUESTBOOK_ENTRIES;
+  return IS_MOCK_ENABLED ? INITIAL_GUESTBOOK_ENTRIES : [];
 }
 
 export async function getAdminRaffles(): Promise<RaffleAttempt[]> {
   const supabase = getSupabaseServerClient();
   if (supabase) {
     try {
-      const { data: raffles } = await (supabase.from("raffle_attempts" as any) as any)
+      const { data: raffles, error } = await (supabase.from("raffle_attempts" as any) as any)
         .select("*")
         .order("created_at", { ascending: false });
 
-      if (raffles && raffles.length > 0) {
+      if (!error && raffles) {
         return raffles.map((r: any) => ({
           id: r.id,
           attendeeHandle: r.attendee_handle,
@@ -264,5 +289,90 @@ export async function getAdminRaffles(): Promise<RaffleAttempt[]> {
       console.warn("[getAdminRaffles] Raffles fallback:", err);
     }
   }
-  return INITIAL_RAFFLE_ATTEMPTS;
+  return IS_MOCK_ENABLED ? INITIAL_RAFFLE_ATTEMPTS : [];
+}
+
+/**
+ * Aggregates finalized POS transactions and fulfilled cart holds keyed by uppercase SKU
+ * so BatchSettlementModal exports real production order manifests instead of an empty list.
+ */
+export async function getAdminBatchOrdersMap(): Promise<Record<string, BatchOrderRow[]>> {
+  const supabase = getSupabaseServiceRoleClient() || getSupabaseServerClient();
+  const ordersBySku: Record<string, BatchOrderRow[]> = {};
+
+  if (!supabase) {
+    return ordersBySku;
+  }
+
+  try {
+    const { data: posRows } = await (supabase.from("pos_transactions" as any) as any)
+      .select("id, sku, price_cents, buyer_handle, status, created_at")
+      .order("created_at", { ascending: true });
+
+    if (Array.isArray(posRows)) {
+      for (const row of posRows) {
+        const skuKey = String(row.sku || "").trim().toUpperCase();
+        if (!skuKey) continue;
+        if (!ordersBySku[skuKey]) ordersBySku[skuKey] = [];
+        const serialNumber = ordersBySku[skuKey].length + 1;
+        ordersBySku[skuKey].push({
+          serialNumber,
+          editionDenominator: serialNumber,
+          size: "L",
+          recipientName: row.buyer_handle || `Collector #${String(serialNumber).padStart(3, "0")}`,
+          address: "",
+          city: "",
+          state: "",
+          zip: "",
+          holderHandle: row.buyer_handle || `@collector_${String(serialNumber).padStart(3, "0")}`,
+          claimStatus: row.status === "UNCLAIMED" ? "UNCLAIMED" : "MINTED_INITIAL",
+          paidDollars: Number(((row.price_cents || 0) / 100).toFixed(2)),
+        });
+      }
+    }
+
+    const { data: fulfilledHolds } = await (supabase.from("cart_holds" as any) as any)
+      .select("id, quantity, user_id, products(sku, price_cents, max_stock)")
+      .eq("status", "FULFILLED")
+      .order("created_at", { ascending: true });
+
+    if (Array.isArray(fulfilledHolds)) {
+      for (const hold of fulfilledHolds) {
+        const prod = Array.isArray(hold.products) ? hold.products[0] : hold.products;
+        const skuKey = String(prod?.sku || "").trim().toUpperCase();
+        if (!skuKey) continue;
+        if (!ordersBySku[skuKey]) ordersBySku[skuKey] = [];
+        const qty = Math.max(1, Number(hold.quantity || 1));
+        for (let i = 0; i < qty; i++) {
+          const serialNumber = ordersBySku[skuKey].length + 1;
+          ordersBySku[skuKey].push({
+            serialNumber,
+            editionDenominator: Number(prod?.max_stock || serialNumber),
+            size: "L",
+            recipientName: hold.user_id || `Collector #${String(serialNumber).padStart(3, "0")}`,
+            address: "",
+            city: "",
+            state: "",
+            zip: "",
+            holderHandle: hold.user_id || `@collector_${String(serialNumber).padStart(3, "0")}`,
+            claimStatus: "MINTED_INITIAL",
+            paidDollars: Number(((prod?.price_cents || 0) / 100).toFixed(2)),
+          });
+        }
+      }
+    }
+
+    for (const list of Object.values(ordersBySku)) {
+      const total = list.length;
+      for (const entry of list) {
+        if (entry.editionDenominator < total) {
+          entry.editionDenominator = total;
+        }
+      }
+    }
+  } catch (err) {
+    console.warn("[getAdminBatchOrdersMap] Batch order aggregation notice:", err);
+  }
+
+  return ordersBySku;
 }

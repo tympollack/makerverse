@@ -4,31 +4,7 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  Smartphone,
-  Nfc,
-  QrCode,
-  Package,
-  CheckCircle2,
-  Layers,
-  ArrowRight,
-  RotateCcw,
-  Wifi,
-  ShoppingBag,
-  Plus,
-  Minus,
-  Sparkles,
-  ShieldCheck,
-  Zap,
-  Lock,
-  ExternalLink,
-  Copy,
-  Check,
-  CheckCheck,
-  Tag,
-  Receipt,
-  FileCheck,
-  ChevronRight,
-  Search,
+  Smartphone, Nfc, QrCode, Package, CheckCircle2, Layers, ArrowRight, RotateCcw, Wifi, ShoppingBag, Plus, Minus, Sparkles, ShieldCheck, Zap, Lock, ExternalLink, Copy, Check, CheckCheck, Tag, Receipt, FileCheck, ChevronRight, Search,
 } from "lucide-react";
 import { FrostedCard } from "@/components/ui/FrostedCard";
 import { MonoValue, PriceTag, ChipUID } from "@/components/ui/MonoValue";
@@ -36,6 +12,7 @@ import { StatusBadge } from "@/components/ui/StatusBadge";
 import { VersionReleaseBadge } from "@/components/admin/VersionReleaseBadge";
 import { POS_TRANSACTIONS } from "@/lib/mock/adminData";
 import type { POSTransaction, POSMode } from "@/lib/mock/adminData";
+import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 
 // ─── Mock Customers for High-Touch Flow ────────────────────────────────────────
@@ -1133,8 +1110,14 @@ function TransactionLedger({ transactions }: { transactions: POSTransaction[] })
       {/* Ledger Rows */}
       <div className="divide-y divide-white/5 font-mono text-xs">
         {filtered.length === 0 ? (
-          <div className="p-8 text-center text-white/30 text-xs">
-            No transactions found
+          <div className="p-10 text-center space-y-2">
+            <Receipt className="w-8 h-8 text-orange-400/40 mx-auto" />
+            <p className="text-sm font-semibold text-white/85 font-sans">
+              No POS transactions recorded yet
+            </p>
+            <p className="text-xs font-mono text-white/40 max-w-md mx-auto">
+              Register your first physical piece or batch and complete a High-Touch NFC handshake or Low-Touch batch checkout to log sales.
+            </p>
           </div>
         ) : (
           filtered.map((tx) => (
@@ -1183,12 +1166,27 @@ function TransactionLedger({ transactions }: { transactions: POSTransaction[] })
 
 // ─── Main POSTerminal Component ────────────────────────────────────────────────
 
-export function POSTerminal() {
+export function POSTerminal({
+  initialTransactions = POS_TRANSACTIONS,
+}: {
+  initialTransactions?: POSTransaction[];
+} = {}) {
   const [mode, setMode] = useState<POSMode>("HIGH_TOUCH");
-  const [transactions, setTransactions] = useState<POSTransaction[]>(POS_TRANSACTIONS);
+  const [transactions, setTransactions] = useState<POSTransaction[]>(initialTransactions);
 
   const handleTransactionComplete = (newTx: POSTransaction) => {
     setTransactions((prev) => [newTx, ...prev]);
+    const sb = getSupabaseBrowserClient();
+    if (!sb || typeof fetch !== "function") return;
+    void sb.auth.getSession().then(({ data }) => {
+      const token = data?.session?.access_token;
+      if (!token) return;
+      return fetch("/api/admin/pos", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify(newTx),
+      });
+    }).catch(() => {});
   };
 
   return (
