@@ -9,6 +9,7 @@ import {
   type ProductBatch,
   type BatchMetadata,
 } from "@/lib/drops/lifecycle";
+import { dispatchPendingDropAlerts } from "@/lib/email/dropAlerts";
 import { IS_MOCK_ENABLED } from "@/lib/mock/adminData";
 import { ALL_BRANDS, type ChipTier } from "@/lib/mock/shopData";
 
@@ -38,7 +39,28 @@ export interface BatchActionResult {
   success: boolean;
   persistedToDb: boolean;
   batch?: ProductBatch;
+  alertsDispatched?: number;
   error?: string;
+}
+
+async function maybeDispatchImmediateDropAlert(
+  supabase: NonNullable<ReturnType<typeof getSupabaseServiceRoleClient>>,
+  batchId: string,
+  status: string,
+): Promise<number> {
+  if (status !== "LIVE") {
+    return 0;
+  }
+  try {
+    const res = await dispatchPendingDropAlerts({
+      supabase: supabase as any,
+      batchId,
+    });
+    return res.emailsDispatched;
+  } catch (err) {
+    console.warn("[schedule/actions] Immediate drop alert dispatch notice:", err);
+    return 0;
+  }
 }
 
 async function resolveCallerAuth(
@@ -224,9 +246,20 @@ export async function scheduleBatchRelease(
     candidateBatch.brandId = brandCheck.brandId;
     candidateBatch.brandHandle = brandCheck.brandHandle || brandHandle;
 
+    const alertsDispatched = await maybeDispatchImmediateDropAlert(
+      supabase as any,
+      candidateBatch.id,
+      candidateBatch.releaseStatus || resolveBatchLifecycleStatus(candidateBatch),
+    );
+
     revalidatePath("/vendor/schedule");
     revalidatePath(`/${candidateBatch.brandHandle}`);
-    return { success: true, persistedToDb: true, batch: candidateBatch };
+    return {
+      success: true,
+      persistedToDb: true,
+      batch: candidateBatch,
+      alertsDispatched,
+    };
   }
 
   if (!IS_MOCK_ENABLED) {
@@ -314,8 +347,19 @@ export async function rescheduleBatchWindow(input: {
       return { success: false, persistedToDb: false, error: updateErr.message };
     }
 
+    const updatedStatus = resolveBatchLifecycleStatus({
+      isPublished: input.isPublished ?? Boolean(existing.is_published),
+      goesLiveAt: normalizedLive,
+      autoRetireAt: normalizedRetire,
+    });
+    const alertsDispatched = await maybeDispatchImmediateDropAlert(
+      supabase as any,
+      input.batchId,
+      updatedStatus,
+    );
+
     revalidatePath("/vendor/schedule");
-    return { success: true, persistedToDb: true };
+    return { success: true, persistedToDb: true, alertsDispatched };
   }
 
   if (!IS_MOCK_ENABLED) {

@@ -232,6 +232,27 @@ export function DropScheduleCalendar({
     }
   };
 
+  const handlePublishNow = async (batch: ProductBatch) => {
+    const nowIso = new Date().toISOString();
+    const authToken = await getAuthToken();
+    const res = await rescheduleBatchWindow({
+      batchId: batch.id,
+      goesLiveAt: nowIso,
+      autoRetireAt: batch.autoRetireAt,
+      isPublished: true,
+      authToken,
+    });
+    if (res.success) {
+      setBatches((prev) =>
+        prev.map((b) =>
+          b.id === batch.id
+            ? { ...b, goesLiveAt: nowIso, isPublished: true, releaseStatus: "LIVE" }
+            : b,
+        ),
+      );
+    }
+  };
+
   const headerLabel = anchorDate.toLocaleDateString("en-US", {
     month: "long",
     year: "numeric",
@@ -510,13 +531,24 @@ export function DropScheduleCalendar({
                       </p>
                     </div>
 
-                    <button
-                      type="button"
-                      onClick={() => openEditBatch(batch)}
-                      className="px-2.5 py-1 rounded-lg bg-white/5 hover:bg-[#CC5500]/20 border border-white/10 hover:border-[#CC5500]/40 font-mono text-[10px] text-white/75 hover:text-orange-200 cursor-pointer whitespace-nowrap"
-                    >
-                      Reschedule
-                    </button>
+                    <div className="flex items-center gap-1.5">
+                      {(status === "DRAFT" || status === "SCHEDULED") && (
+                        <button
+                          type="button"
+                          onClick={() => void handlePublishNow(batch)}
+                          className="px-2.5 py-1 rounded-lg bg-[#CC5500]/20 hover:bg-[#CC5500]/35 border border-[#CC5500]/50 font-mono text-[10px] font-bold text-orange-200 cursor-pointer whitespace-nowrap"
+                        >
+                          Publish Now
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => openEditBatch(batch)}
+                        className="px-2.5 py-1 rounded-lg bg-white/5 hover:bg-[#CC5500]/20 border border-white/10 hover:border-[#CC5500]/40 font-mono text-[10px] text-white/75 hover:text-orange-200 cursor-pointer whitespace-nowrap"
+                      >
+                        Reschedule
+                      </button>
+                    </div>
                   </div>
 
                   <div className="flex items-center justify-between gap-2 pt-2 border-t border-white/8 font-mono text-[11px]">

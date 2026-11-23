@@ -199,6 +199,16 @@ export function QuickScheduleModal({
               >
                 12:00 PM
               </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setStartLocal(toLocalDatetimeInput(new Date()));
+                  setIsPublished(true);
+                }}
+                className="px-2 py-0.5 rounded bg-[#CC5500]/20 hover:bg-[#CC5500]/35 border border-[#CC5500]/50 font-mono text-[10px] font-bold text-orange-200 cursor-pointer"
+              >
+                Publish Now
+              </button>
             </div>
           </div>
           <input
