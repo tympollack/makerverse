@@ -44,7 +44,8 @@ export function buildDropAlertEmailContent(params: {
 }): DropEmailContent {
   const { batch, appBaseUrl, unsubscribeUrl } = params;
   const cleanBase = appBaseUrl.replace(/\/+$/, "");
-  const dropUrl = `${cleanBase}/${encodeURIComponent(batch.brandSlug)}`;
+  const batchRef = batch.sku || batch.id;
+  const dropUrl = `${cleanBase}/${encodeURIComponent(batch.brandSlug)}?batch=${encodeURIComponent(batchRef)}#catalog`;
 
   const isV2 = batch.versionTag.toLowerCase().startsWith("v2");
   const versionBadge = isV2

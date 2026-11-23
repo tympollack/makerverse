@@ -1,7 +1,7 @@
 // app/(shop)/get-bent/page.tsx
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import {
   BadgeCheck,
@@ -16,6 +16,11 @@ import { ShirtPreviewCard } from "@/components/shop/get-bent/ShirtPreviewCard";
 import { DualTrackCheckoutPanel } from "@/components/shop/get-bent/DualTrackCheckoutPanel";
 import { UpcomingDropsRail } from "@/components/shop/UpcomingDropsRail";
 import { DropShareBar } from "@/components/shop/DropShareBar";
+import {
+  ActiveBatchBanner,
+  fetchActiveBatchByParam,
+} from "@/components/shop/ActiveBatchBanner";
+import type { ProductBatch } from "@/lib/drops/lifecycle";
 
 // Friday, Nov 27, 2026 at 11:59 PM EST
 const BLACK_FRIDAY_CUTOFF_MS = new Date("2026-11-27T23:59:00-05:00").getTime();
@@ -23,6 +28,43 @@ const BLACK_FRIDAY_CUTOFF_MS = new Date("2026-11-27T23:59:00-05:00").getTime();
 export default function GetBentFlagshipDropPage() {
   const [totalMinted, setTotalMinted] = useState<number>(114);
   const [topBidDollars, setTopBidDollars] = useState<number>(69);
+  const [activeBatch, setActiveBatch] = useState<ProductBatch | null>(null);
+
+  useEffect(() => {
+    const batchParam =
+      typeof window !== "undefined"
+        ? new URLSearchParams(window.location.search).get("batch")
+        : null;
+    if (!batchParam) return;
+
+    let active = true;
+    fetchActiveBatchByParam("get-bent", batchParam).then((matched) => {
+      if (!active || !matched) return;
+      setActiveBatch(matched);
+      if (typeof matched.mintedCount === "number" && matched.mintedCount > 0) {
+        setTotalMinted(matched.mintedCount);
+      }
+      if (typeof matched.metadata?.topBidDollars === "number") {
+        setTopBidDollars(matched.metadata.topBidDollars);
+      }
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const parsedRetireMs = activeBatch?.autoRetireAt
+    ? Date.parse(activeBatch.autoRetireAt)
+    : Number.NaN;
+  const activeCutoffMs =
+    Number.isFinite(parsedRetireMs) && parsedRetireMs > 0
+      ? parsedRetireMs
+      : BLACK_FRIDAY_CUTOFF_MS;
+  const parsedLiveMs = activeBatch?.goesLiveAt
+    ? Date.parse(activeBatch.goesLiveAt)
+    : Number.NaN;
+  const activeStartsMs =
+    Number.isFinite(parsedLiveMs) && parsedLiveMs > 0 ? parsedLiveMs : undefined;
 
   return (
     <main className="min-h-screen bg-[#1A1A1A] text-[#F9F9F9] selection:bg-[#CC5500]/40 selection:text-white">
@@ -82,7 +124,10 @@ export default function GetBentFlagshipDropPage() {
               </div>
 
               <p className="text-sm text-white/70 max-w-2xl leading-relaxed">
-                Batch 001: The 24-Hour Black Friday Drop. Pure heavyweight typography paired with woven NTAG213 provenance and our uncapped #069/N soft-close auction + sequential hopper engine.
+                {activeBatch
+                  ? `${activeBatch.title} (${activeBatch.sku} · ${activeBatch.versionTag}).`
+                  : "Batch 001: The 24-Hour Black Friday Drop."}{" "}
+                Pure heavyweight typography paired with woven NTAG213 provenance and our uncapped #069/N soft-close auction + sequential hopper engine.
               </p>
             </div>
 
@@ -90,12 +135,16 @@ export default function GetBentFlagshipDropPage() {
             <div className="rounded-xl bg-black/60 border border-white/15 px-5 py-4 flex flex-col items-start lg:items-end justify-center flex-shrink-0">
               <div className="flex items-center gap-1.5 font-mono text-[10px] text-orange-300 uppercase tracking-widest">
                 <Clock className="w-3.5 h-3.5 text-[#CC5500]" />
-                <span>CLOSES FRI, NOV 27, 2026 · 11:59 PM EST</span>
+                <span>
+                  {activeBatch
+                    ? `FEATURED DROP · ${activeBatch.sku}`
+                    : "CLOSES FRI, NOV 27, 2026 · 11:59 PM EST"}
+                </span>
               </div>
               <div className="mt-1 flex items-baseline gap-2">
                 <span className="font-mono text-xs text-white/45">24HR WINDOW:</span>
                 <CountdownTimer
-                  expiresAt={BLACK_FRIDAY_CUTOFF_MS}
+                  expiresAt={activeCutoffMs}
                   className="text-xl sm:text-2xl font-bold text-[#22D3EE]"
                 />
               </div>
@@ -122,6 +171,8 @@ export default function GetBentFlagshipDropPage() {
           </div>
         </header>
 
+        <ActiveBatchBanner batch={activeBatch} clearHref="/get-bent" />
+
         {/* 2. Shirt Preview Card + 3. Interactive Dual-Track Checkout & #69 Auction Panel */}
         <section id="catalog" className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
           <div className="lg:col-span-6">
@@ -137,7 +188,8 @@ export default function GetBentFlagshipDropPage() {
               onIncrementMinted={() => setTotalMinted((n) => n + 1)}
               topBidDollars={topBidDollars}
               onUpdateTopBid={(bid) => setTopBidDollars(bid)}
-              cutoffMs={BLACK_FRIDAY_CUTOFF_MS}
+              startsAtMs={activeStartsMs}
+              cutoffMs={activeCutoffMs}
             />
           </div>
         </section>
@@ -146,7 +198,7 @@ export default function GetBentFlagshipDropPage() {
         <DropShareBar
           brandName="Get Bent Clothing"
           brandHandle="get-bent"
-          batchLabel="Batch 001"
+          batchLabel={activeBatch ? activeBatch.sku : "Batch 001"}
           mintedCount={totalMinted}
           topBidDollars={topBidDollars}
           sharePath="/get-bent"

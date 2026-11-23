@@ -535,6 +535,7 @@ export interface MakerverseTables {
       goes_live_at: string;
       auto_retire_at: string | null;
       drop_alert_sent_at: string | null;
+      drop_alert_claimed_at: string | null;
       version_tag: string;
       is_public_teaser: boolean;
       artist_attribution: string | null;
@@ -561,6 +562,7 @@ export interface MakerverseTables {
       goes_live_at?: string;
       auto_retire_at?: string | null;
       drop_alert_sent_at?: string | null;
+      drop_alert_claimed_at?: string | null;
       version_tag?: string;
       is_public_teaser?: boolean;
       artist_attribution?: string | null;
@@ -587,6 +589,7 @@ export interface MakerverseTables {
       goes_live_at?: string;
       auto_retire_at?: string | null;
       drop_alert_sent_at?: string | null;
+      drop_alert_claimed_at?: string | null;
       version_tag?: string;
       is_public_teaser?: boolean;
       artist_attribution?: string | null;

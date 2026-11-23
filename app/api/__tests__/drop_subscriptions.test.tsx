@@ -20,6 +20,7 @@ vi.mock("@/lib/supabase/client", () => ({
 }));
 
 import {
+  getUserDropSubscriptions,
   upsertDropSubscription,
   deactivateDropSubscription,
 } from "@/app/(shop)/actions/followActions";
@@ -69,6 +70,7 @@ describe("TASK-MKR-DROP-SUBSCRIPTIONS-SCHEMA: Follow Actions, UI & Unsubscribe",
     expect(guestOk.success).toBe(true);
     expect(guestOk.persistedToDb).toBe(true);
     expect(guestOk.email).toBe("collector@example.com");
+    expect("unsubscribeToken" in guestOk).toBe(false);
     expect(upsertMock).toHaveBeenCalledWith(
       {
         email: "collector@example.com",
@@ -77,8 +79,17 @@ describe("TASK-MKR-DROP-SUBSCRIPTIONS-SCHEMA: Follow Actions, UI & Unsubscribe",
         target_id: "b0000001-0000-0000-0000-000000000001",
         is_active: true,
       },
-      { onConflict: "email,target_type,target_id" },
+      { onConflict: "email,target_type,target_id", ignoreDuplicates: true },
     );
+
+    const guestDeactivate = await deactivateDropSubscription({
+      email: "collector@example.com",
+      targetType: "brand",
+      targetId: "b0000001-0000-0000-0000-000000000001",
+    });
+    expect(guestDeactivate.success).toBe(false);
+    expect(guestDeactivate.requiresAuthOrEmailLink).toBe(true);
+    expect(guestDeactivate.error).toContain("unsubscribe link");
   });
 
   it("automatically captures logged-in user email and deactivates on unfollow", async () => {
@@ -95,11 +106,11 @@ describe("TASK-MKR-DROP-SUBSCRIPTIONS-SCHEMA: Follow Actions, UI & Unsubscribe",
       }),
     });
 
-    const eqEmailMock = vi.fn().mockResolvedValue({ error: null });
+    const orMock = vi.fn().mockResolvedValue({ error: null });
     const updateMock = vi.fn().mockReturnValue({
       eq: vi.fn().mockReturnValue({
         eq: vi.fn().mockReturnValue({
-          eq: eqEmailMock,
+          or: orMock,
         }),
       }),
     });
@@ -148,12 +159,14 @@ describe("TASK-MKR-DROP-SUBSCRIPTIONS-SCHEMA: Follow Actions, UI & Unsubscribe",
     });
     expect(offRes.success).toBe(true);
     expect(offRes.subscribed).toBe(false);
-    expect(eqEmailMock).toHaveBeenCalledWith("email", "member@sunshade.icu");
+    expect(orMock).toHaveBeenCalledWith(
+      "user_id.eq.aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa,email.eq.member@sunshade.icu",
+    );
   });
 
-  it("handles GET and POST /api/unsubscribe without login", async () => {
+  it("renders read-only confirm page on GET and unsubscribes on POST /api/unsubscribe", async () => {
     const validToken = "33333333-3333-4333-8333-333333333333";
-    const maybeSingleMock = vi.fn().mockResolvedValue({
+    const maybeSingleUpdateMock = vi.fn().mockResolvedValue({
       data: {
         id: "sub-3",
         target_type: "brand",
@@ -162,16 +175,30 @@ describe("TASK-MKR-DROP-SUBSCRIPTIONS-SCHEMA: Follow Actions, UI & Unsubscribe",
       },
       error: null,
     });
+    const updateMock = vi.fn().mockReturnValue({
+      eq: vi.fn().mockReturnValue({
+        select: vi.fn().mockReturnValue({
+          maybeSingle: maybeSingleUpdateMock,
+        }),
+      }),
+    });
+    const selectMock = vi.fn().mockReturnValue({
+      eq: vi.fn().mockReturnValue({
+        maybeSingle: vi.fn().mockResolvedValue({
+          data: {
+            id: "sub-3",
+            target_type: "brand",
+            is_active: true,
+          },
+          error: null,
+        }),
+      }),
+    });
 
     mockGetServiceRoleClient.mockReturnValue({
       from: vi.fn().mockReturnValue({
-        update: vi.fn().mockReturnValue({
-          eq: vi.fn().mockReturnValue({
-            select: vi.fn().mockReturnValue({
-              maybeSingle: maybeSingleMock,
-            }),
-          }),
-        }),
+        select: selectMock,
+        update: updateMock,
       }),
     });
 
@@ -185,8 +212,10 @@ describe("TASK-MKR-DROP-SUBSCRIPTIONS-SCHEMA: Follow Actions, UI & Unsubscribe",
     );
     expect(okGet.status).toBe(200);
     const html = await okGet.text();
-    expect(html).toContain("You&#039;ve Been Unsubscribed");
+    expect(html).toContain("Confirm Unsubscribe");
+    expect(html).toContain('method="POST"');
     expect(html).toContain("#1A1A1A");
+    expect(updateMock).not.toHaveBeenCalled();
 
     const okPost = await postUnsubscribe(
       new NextRequest(`http://localhost:3000/api/unsubscribe?token=${validToken}`, {
@@ -194,11 +223,21 @@ describe("TASK-MKR-DROP-SUBSCRIPTIONS-SCHEMA: Follow Actions, UI & Unsubscribe",
       }),
     );
     expect(okPost.status).toBe(200);
+    expect(updateMock).toHaveBeenCalledTimes(1);
     expect(await okPost.json()).toEqual({
       success: true,
       unsubscribed: true,
       targetType: "brand",
     });
+
+    const browserPost = await postUnsubscribe(
+      new NextRequest(`http://localhost:3000/api/unsubscribe?token=${validToken}`, {
+        method: "POST",
+        headers: { accept: "text/html" },
+      }),
+    );
+    expect(browserPost.status).toBe(200);
+    expect(await browserPost.text()).toContain("You&#039;ve Been Unsubscribed");
   });
 
   it("upserts into drop_subscriptions when /api/drops/notify receives a valid batch subscription", async () => {
@@ -350,5 +389,63 @@ describe("TASK-MKR-DROP-SUBSCRIPTIONS-SCHEMA: Follow Actions, UI & Unsubscribe",
     });
 
     fetchSpy.mockRestore();
+  });
+
+  it("restores signed-in FollowToggle state on fresh mount via getUserDropSubscriptions", async () => {
+    const userId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+    const productLineId = "line-gb-heavy";
+
+    mockGetBrowserClient.mockReturnValue({
+      auth: {
+        getSession: vi.fn().mockResolvedValue({
+          data: {
+            session: {
+              access_token: "sess-jwt-restore",
+              user: { id: userId, email: "member@sunshade.icu" },
+            },
+          },
+        }),
+      },
+    });
+
+    mockGetServiceRoleClient.mockReturnValue({
+      auth: {
+        getUser: vi.fn().mockResolvedValue({
+          data: {
+            user: { id: userId, email: "member@sunshade.icu" },
+          },
+          error: null,
+        }),
+      },
+      from: vi.fn().mockReturnValue({
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            or: vi.fn().mockResolvedValue({
+              data: [{ target_type: "product_line", target_id: productLineId }],
+              error: null,
+            }),
+          }),
+        }),
+      }),
+    });
+
+    const subs = await getUserDropSubscriptions({ authToken: "sess-jwt-restore" });
+    expect(subs.authenticated).toBe(true);
+    expect(subs.targets).toEqual([
+      { targetType: "product_line", targetId: productLineId },
+    ]);
+
+    render(
+      <FollowToggle
+        target="product"
+        targetType="product_line"
+        targetId={productLineId}
+        initialFollowed={false}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText(/Following Line/i)).toBeInTheDocument();
+    });
   });
 });

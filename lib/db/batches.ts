@@ -25,6 +25,7 @@ function mapRowToBatch(row: Record<string, any>): ProductBatch {
     brandId: row.brand_id,
     brandHandle: brandRel?.slug || row.brand_handle || "get-bent",
     productId: row.product_id ?? null,
+    productLineId: row.product_line_id ?? null,
     parentBatchId: row.parent_batch_id ?? null,
     title: row.title,
     sku: row.sku || `MKR-${String(row.batch_number ?? 1).padStart(3, "0")}`,
@@ -108,6 +109,22 @@ export async function getScheduledTeasers(brandHandle?: string): Promise<Product
     }))
     .filter((b) => b.releaseStatus === "SCHEDULED" && b.isPublicTeaser)
     .sort((a, b) => Date.parse(a.goesLiveAt) - Date.parse(b.goesLiveAt));
+}
+
+/**
+ * Fetch active LIVE published batches for a brand storefront (or across brands).
+ * Ordered by goes_live_at DESC.
+ */
+export async function getLiveBatches(brandHandle?: string): Promise<ProductBatch[]> {
+  const all = await getVendorBatches(brandHandle);
+  const now = Date.now();
+  return all
+    .map((b) => ({
+      ...b,
+      releaseStatus: resolveBatchLifecycleStatus(b, now),
+    }))
+    .filter((b) => b.releaseStatus === "LIVE")
+    .sort((a, b) => Date.parse(b.goesLiveAt) - Date.parse(a.goesLiveAt));
 }
 
 /**

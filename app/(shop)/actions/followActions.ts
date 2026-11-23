@@ -28,10 +28,19 @@ export interface DropSubscriptionResult {
   persistedToDb: boolean;
   subscribed: boolean;
   requiresEmail?: boolean;
+  requiresAuthOrEmailLink?: boolean;
   email?: string;
   subscriptionId?: string;
-  unsubscribeToken?: string;
   error?: string;
+}
+
+export interface UserActiveDropSubscriptionsResult {
+  authenticated: boolean;
+  email?: string;
+  targets: Array<{
+    targetType: DropSubscriptionTargetType;
+    targetId: string;
+  }>;
 }
 
 async function resolveBearerToken(explicitToken?: string): Promise<string> {
@@ -75,8 +84,62 @@ async function resolveAuthenticatedUser(
 }
 
 /**
- * Upserts a user or guest email into `makerverse.drop_subscriptions`
- * for brand follows, product_line follows, or batch Notify-Me alerts.
+ * Fetches active drop subscriptions strictly for the verified authenticated user.
+ * Never looks up preferences by unverified guest email.
+ */
+export async function getUserDropSubscriptions(input?: {
+  authToken?: string;
+}): Promise<UserActiveDropSubscriptionsResult> {
+  const supabase = getSupabaseServiceRoleClient() || getSupabaseServerClient();
+  if (!supabase) {
+    return { authenticated: false, targets: [] };
+  }
+
+  const auth = await resolveAuthenticatedUser(supabase as any, input?.authToken);
+  if (!auth.userId) {
+    return { authenticated: false, targets: [] };
+  }
+
+  let query = (supabase.from("drop_subscriptions" as any) as any)
+    .select("target_type, target_id")
+    .eq("is_active", true);
+
+  if (auth.userEmail) {
+    query = query.or(`user_id.eq.${auth.userId},email.eq.${auth.userEmail}`);
+  } else {
+    query = query.eq("user_id", auth.userId);
+  }
+
+  const { data, error } = await query;
+  if (error || !Array.isArray(data)) {
+    return {
+      authenticated: true,
+      email: auth.userEmail ?? undefined,
+      targets: [],
+    };
+  }
+
+  return {
+    authenticated: true,
+    email: auth.userEmail ?? undefined,
+    targets: data
+      .filter(
+        (row: any) =>
+          VALID_TARGET_TYPES.has(row.target_type) &&
+          typeof row.target_id === "string",
+      )
+      .map((row: any) => ({
+        targetType: row.target_type as DropSubscriptionTargetType,
+        targetId: row.target_id as string,
+      })),
+  };
+}
+
+/**
+ * Upserts a verified user's email or inserts a new guest email into `makerverse.drop_subscriptions`.
+ * Unauthenticated guest requests use `ignoreDuplicates: true` so callers cannot reactivate
+ * an opted-out recipient's row or overwrite another user's ownership, and `unsubscribe_token`
+ * is never returned to the caller.
  */
 export async function upsertDropSubscription(
   input: DropSubscriptionInput,
@@ -112,6 +175,16 @@ export async function upsertDropSubscription(
     verifiedUserEmail = auth.userEmail;
   }
 
+  if (!verifiedUserId && !isActive) {
+    return {
+      success: false,
+      persistedToDb: false,
+      subscribed: true,
+      requiresAuthOrEmailLink: true,
+      error: "Use the unsubscribe link in your alert email or sign in to manage alerts.",
+    };
+  }
+
   const suppliedEmail =
     typeof input.email === "string" ? input.email.trim().toLowerCase() : "";
   const effectiveEmail = verifiedUserEmail || suppliedEmail;
@@ -127,6 +200,10 @@ export async function upsertDropSubscription(
   }
 
   if (supabase) {
+    const upsertOptions = verifiedUserId
+      ? { onConflict: "email,target_type,target_id" }
+      : { onConflict: "email,target_type,target_id", ignoreDuplicates: true };
+
     const { data, error } = await (supabase.from("drop_subscriptions" as any) as any)
       .upsert(
         {
@@ -136,11 +213,9 @@ export async function upsertDropSubscription(
           target_id: targetId,
           is_active: isActive,
         },
-        {
-          onConflict: "email,target_type,target_id",
-        },
+        upsertOptions,
       )
-      .select("id, unsubscribe_token, is_active")
+      .select("id, is_active")
       .maybeSingle();
 
     if (error) {
@@ -158,7 +233,6 @@ export async function upsertDropSubscription(
       subscribed: data?.is_active ?? isActive,
       email: effectiveEmail,
       subscriptionId: data?.id,
-      unsubscribeToken: data?.unsubscribe_token,
     };
   }
 
@@ -180,7 +254,8 @@ export async function upsertDropSubscription(
 }
 
 /**
- * Deactivates an active drop subscription when a user unfollows or un-arms an alert.
+ * Deactivates an active drop subscription exclusively for a verified signed-in user.
+ * Unauthenticated guests must use their tokenized one-click email unsubscribe link.
  */
 export async function deactivateDropSubscription(
   input: Omit<DropSubscriptionInput, "isActive">,
@@ -205,54 +280,50 @@ export async function deactivateDropSubscription(
   }
 
   const supabase = getSupabaseServiceRoleClient() || getSupabaseServerClient();
-  const suppliedEmail =
-    typeof input.email === "string" ? input.email.trim().toLowerCase() : "";
-
-  if (supabase) {
-    const auth = await resolveAuthenticatedUser(supabase as any, input.authToken);
-    const effectiveEmail = auth.userEmail || suppliedEmail;
-
-    if (!effectiveEmail && !auth.userId) {
-      return {
-        success: true,
-        persistedToDb: false,
-        subscribed: false,
-      };
-    }
-
-    let query = (supabase.from("drop_subscriptions" as any) as any)
-      .update({ is_active: false })
-      .eq("target_type", input.targetType)
-      .eq("target_id", targetId);
-
-    if (effectiveEmail) {
-      query = query.eq("email", effectiveEmail);
-    } else if (auth.userId) {
-      query = query.eq("user_id", auth.userId);
-    }
-
-    const { error } = await query;
-    if (error) {
-      return {
-        success: false,
-        persistedToDb: false,
-        subscribed: false,
-        error: error.message,
-      };
-    }
-
+  if (!supabase) {
     return {
       success: true,
-      persistedToDb: true,
+      persistedToDb: false,
       subscribed: false,
-      email: effectiveEmail || undefined,
+    };
+  }
+
+  const auth = await resolveAuthenticatedUser(supabase as any, input.authToken);
+  if (!auth.userId) {
+    return {
+      success: false,
+      persistedToDb: false,
+      subscribed: true,
+      requiresAuthOrEmailLink: true,
+      error: "Use the unsubscribe link in your alert email or sign in to unfollow.",
+    };
+  }
+
+  let query = (supabase.from("drop_subscriptions" as any) as any)
+    .update({ is_active: false })
+    .eq("target_type", input.targetType)
+    .eq("target_id", targetId);
+
+  if (auth.userEmail) {
+    query = query.or(`user_id.eq.${auth.userId},email.eq.${auth.userEmail}`);
+  } else {
+    query = query.eq("user_id", auth.userId);
+  }
+
+  const { error } = await query;
+  if (error) {
+    return {
+      success: false,
+      persistedToDb: false,
+      subscribed: false,
+      error: error.message,
     };
   }
 
   return {
     success: true,
-    persistedToDb: false,
+    persistedToDb: true,
     subscribed: false,
-    email: suppliedEmail || undefined,
+    email: auth.userEmail ?? undefined,
   };
 }

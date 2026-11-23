@@ -18,6 +18,8 @@ const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12
 export interface ScheduleBatchInput {
   brandId?: string;
   brandHandle?: string;
+  productId?: string | null;
+  productLineId?: string | null;
   title: string;
   sku?: string;
   goesLiveAt: string;
@@ -176,6 +178,8 @@ export async function scheduleBatchRelease(
     id: `batch_${Date.now().toString(36)}`,
     brandId: fallbackBrandId,
     brandHandle,
+    productId: input.productId ?? null,
+    productLineId: input.productLineId ?? null,
     parentBatchId: input.parentBatchId ?? null,
     title,
     sku: (input.sku || `MKR-${Date.now().toString(36).slice(-4)}`).toUpperCase(),
@@ -216,6 +220,8 @@ export async function scheduleBatchRelease(
     const { data, error } = await (supabase.from("product_batches" as any) as any)
       .insert({
         brand_id: brandCheck.brandId,
+        product_id: input.productId && UUID_REGEX.test(input.productId) ? input.productId : null,
+        product_line_id: input.productLineId && UUID_REGEX.test(input.productLineId) ? input.productLineId : null,
         parent_batch_id: input.parentBatchId && UUID_REGEX.test(input.parentBatchId) ? input.parentBatchId : null,
         title: candidateBatch.title,
         sku: candidateBatch.sku,
@@ -275,6 +281,8 @@ export async function rescheduleBatchWindow(input: {
   goesLiveAt: string;
   autoRetireAt?: string | null;
   isPublished?: boolean;
+  productId?: string | null;
+  productLineId?: string | null;
   title?: string;
   sku?: string;
   versionTag?: string;
@@ -334,6 +342,17 @@ export async function rescheduleBatchWindow(input: {
         goes_live_at: normalizedLive,
         auto_retire_at: normalizedRetire,
         ...(input.isPublished !== undefined ? { is_published: input.isPublished } : {}),
+        ...(input.productId !== undefined
+          ? { product_id: input.productId && UUID_REGEX.test(input.productId) ? input.productId : null }
+          : {}),
+        ...(input.productLineId !== undefined
+          ? {
+              product_line_id:
+                input.productLineId && UUID_REGEX.test(input.productLineId)
+                  ? input.productLineId
+                  : null,
+            }
+          : {}),
         ...(input.title !== undefined ? { title: input.title.trim() } : {}),
         ...(input.sku !== undefined ? { sku: input.sku.trim().toUpperCase() } : {}),
         ...(input.versionTag !== undefined ? { version_tag: input.versionTag } : {}),

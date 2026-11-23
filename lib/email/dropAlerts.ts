@@ -58,20 +58,34 @@ interface SubscriptionRow {
   target_id: string;
 }
 
+const DEFAULT_LEASE_MINUTES = 10;
+const DEFAULT_MAX_BATCH_AGE_HOURS = 24;
+
+function getDefaultMaxBatchAgeHours(): number {
+  const parsed = Number(process.env.DROP_ALERT_MAX_AGE_HOURS);
+  if (Number.isFinite(parsed) && parsed > 0) {
+    return parsed;
+  }
+  return DEFAULT_MAX_BATCH_AGE_HOURS;
+}
+
 /**
  * Detects newly LIVE batches with `drop_alert_sent_at IS NULL`, atomically claims
- * each batch to prevent duplicate blasts, resolves active brand/product_line/batch
- * subscribers deduplicated by email, and dispatches via `@digitalcanopy/email`.
+ * each batch via a time-bounded `drop_alert_claimed_at` lease to prevent duplicate blasts,
+ * resolves active brand/product_line/batch subscribers deduplicated by email,
+ * and dispatches via `@digitalcanopy/email` (stamping `drop_alert_sent_at` only on live send).
  */
 export async function dispatchPendingDropAlerts(params: {
   supabase: SupabaseClient<Database, "makerverse">;
   emailClient?: EmailClient;
   batchId?: string;
   appBaseUrl?: string;
+  maxBatchAgeHours?: number;
 }): Promise<DispatchDropAlertsResult> {
   const { supabase, batchId } = params;
   const emailClient = params.emailClient ?? getMakerverseEmailClient();
   const appBaseUrl = (params.appBaseUrl ?? getMakerverseBaseUrl()).replace(/\/+$/, "");
+  const maxBatchAgeHours = params.maxBatchAgeHours ?? getDefaultMaxBatchAgeHours();
 
   let query = (supabase.from("v_batch_lifecycle" as any) as any)
     .select("*")
@@ -80,6 +94,15 @@ export async function dispatchPendingDropAlerts(params: {
 
   if (batchId) {
     query = query.eq("id", batchId);
+  } else if (
+    Number.isFinite(maxBatchAgeHours) &&
+    maxBatchAgeHours > 0 &&
+    typeof query?.gte === "function"
+  ) {
+    const cutoffIso = new Date(
+      Date.now() - maxBatchAgeHours * 60 * 60 * 1000,
+    ).toISOString();
+    query = query.gte("goes_live_at", cutoffIso);
   }
 
   const { data: liveBatches, error: queryErr } = await query;
@@ -102,14 +125,24 @@ export async function dispatchPendingDropAlerts(params: {
   const batchResults: DispatchDropAlertsResult["batchResults"] = [];
 
   for (const row of liveBatches) {
-    const nowIso = new Date().toISOString();
+    const nowMs = Date.now();
+    const nowIso = new Date(nowMs).toISOString();
+    const staleCutoffIso = new Date(
+      nowMs - DEFAULT_LEASE_MINUTES * 60 * 1000,
+    ).toISOString();
 
-    const { data: claimed, error: claimErr } = await (
-      supabase.from("product_batches" as any) as any
-    )
-      .update({ drop_alert_sent_at: nowIso })
+    let claimQuery = (supabase.from("product_batches" as any) as any)
+      .update({ drop_alert_claimed_at: nowIso })
       .eq("id", row.id)
-      .is("drop_alert_sent_at", null)
+      .is("drop_alert_sent_at", null);
+
+    if (typeof claimQuery?.or === "function") {
+      claimQuery = claimQuery.or(
+        `drop_alert_claimed_at.is.null,drop_alert_claimed_at.lt.${staleCutoffIso}`,
+      );
+    }
+
+    const { data: claimed, error: claimErr } = await claimQuery
       .select("id")
       .maybeSingle();
 
@@ -225,9 +258,24 @@ export async function dispatchPendingDropAlerts(params: {
           };
         });
 
-        const dispatchRes = await emailClient.sendBatchNotification(messages);
+        const dispatchRes = await emailClient.sendBatchNotification(messages, {
+          idempotencyKey: `drop-alert:${row.id}`,
+        });
         dispatchedCount = dispatchRes.totalSent;
         dryRun = dispatchRes.dryRun;
+      }
+
+      if (dryRun) {
+        await (supabase.from("product_batches" as any) as any)
+          .update({ drop_alert_claimed_at: null })
+          .eq("id", row.id);
+      } else {
+        await (supabase.from("product_batches" as any) as any)
+          .update({
+            drop_alert_sent_at: new Date().toISOString(),
+            drop_alert_claimed_at: null,
+          })
+          .eq("id", row.id);
       }
 
       processedBatches++;
@@ -241,7 +289,7 @@ export async function dispatchPendingDropAlerts(params: {
       });
     } catch (err) {
       await (supabase.from("product_batches" as any) as any)
-        .update({ drop_alert_sent_at: null })
+        .update({ drop_alert_claimed_at: null })
         .eq("id", row.id);
       throw err;
     }

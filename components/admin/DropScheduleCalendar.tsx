@@ -98,6 +98,7 @@ export function DropScheduleCalendar({
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedDateIso, setSelectedDateIso] = useState<string>(() => toDateKey(new Date()));
   const [editingBatch, setEditingBatch] = useState<ProductBatch | null>(null);
+  const [publishError, setPublishError] = useState<string | null>(null);
 
   const days = useMemo(() => buildCalendarDays(anchorDate, viewMode), [anchorDate, viewMode]);
   const todayKey = toDateKey(new Date());
@@ -218,6 +219,7 @@ export function DropScheduleCalendar({
   };
 
   const handleToggleTeaser = async (batch: ProductBatch) => {
+    setPublishError(null);
     const next = !batch.isPublicTeaser;
     const authToken = await getAuthToken();
     const res = await togglePublicTeaser({
@@ -229,16 +231,35 @@ export function DropScheduleCalendar({
       setBatches((prev) =>
         prev.map((b) => (b.id === batch.id ? { ...b, isPublicTeaser: next } : b)),
       );
+    } else {
+      setPublishError(res.error || "Failed to update teaser visibility.");
     }
   };
 
   const handlePublishNow = async (batch: ProductBatch) => {
-    const nowIso = new Date().toISOString();
+    setPublishError(null);
+    const nowDate = new Date();
+    const nowMs = nowDate.getTime();
+    const nowIso = nowDate.toISOString();
+
+    let nextAutoRetireAt: string | null = batch.autoRetireAt;
+    if (batch.autoRetireAt) {
+      const retireMs = Date.parse(batch.autoRetireAt);
+      if (Number.isFinite(retireMs) && retireMs <= nowMs) {
+        const liveMs = Date.parse(batch.goesLiveAt);
+        const origDurationMs =
+          Number.isFinite(liveMs) && retireMs > liveMs
+            ? retireMs - liveMs
+            : 24 * 60 * 60 * 1000;
+        nextAutoRetireAt = new Date(nowMs + origDurationMs).toISOString();
+      }
+    }
+
     const authToken = await getAuthToken();
     const res = await rescheduleBatchWindow({
       batchId: batch.id,
       goesLiveAt: nowIso,
-      autoRetireAt: batch.autoRetireAt,
+      autoRetireAt: nextAutoRetireAt,
       isPublished: true,
       authToken,
     });
@@ -246,10 +267,18 @@ export function DropScheduleCalendar({
       setBatches((prev) =>
         prev.map((b) =>
           b.id === batch.id
-            ? { ...b, goesLiveAt: nowIso, isPublished: true, releaseStatus: "LIVE" }
+            ? {
+                ...b,
+                goesLiveAt: nowIso,
+                autoRetireAt: nextAutoRetireAt,
+                isPublished: true,
+                releaseStatus: "LIVE",
+              }
             : b,
         ),
       );
+    } else {
+      setPublishError(res.error || "Failed to publish batch immediately.");
     }
   };
 
@@ -315,6 +344,22 @@ export function DropScheduleCalendar({
           </button>
         </div>
       </div>
+
+      {publishError && (
+        <div
+          role="alert"
+          className="p-3.5 rounded-xl bg-red-500/10 border border-red-500/35 flex items-center justify-between gap-2 text-red-200 font-mono text-xs"
+        >
+          <span>{publishError}</span>
+          <button
+            type="button"
+            onClick={() => setPublishError(null)}
+            className="text-red-300 hover:text-white underline cursor-pointer"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
 
       {/* Fulfillment Overlap Advisory Banner */}
       {advisories.length > 0 && (

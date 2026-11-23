@@ -1,11 +1,12 @@
 // components/ui/FollowToggle.tsx
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Check, Mail, Plus, Radio } from "lucide-react";
 import {
   deactivateDropSubscription,
+  getUserDropSubscriptions,
   upsertDropSubscription,
   type DropSubscriptionTargetType,
 } from "@/app/(shop)/actions/followActions";
@@ -46,10 +47,53 @@ export function FollowToggle({
   showIcon = true,
 }: FollowToggleProps) {
   const [followed, setFollowed] = useState(initialFollowed);
+  const [prevInitialFollowed, setPrevInitialFollowed] = useState(initialFollowed);
   const [showEmailPrompt, setShowEmailPrompt] = useState(false);
   const [guestEmail, setGuestEmail] = useState(userEmail ?? "");
   const [submitting, setSubmitting] = useState(false);
   const [statusNote, setStatusNote] = useState<string | null>(null);
+
+  if (prevInitialFollowed !== initialFollowed) {
+    setPrevInitialFollowed(initialFollowed);
+    setFollowed(initialFollowed);
+  }
+
+  // Restore saved subscription state on fresh mount for signed-in shoppers
+  useEffect(() => {
+    if (!targetType || !targetId || initialFollowed) return;
+    const sb = getSupabaseBrowserClient();
+    if (!sb) return;
+
+    let active = true;
+    async function restoreSignedInPreference() {
+      try {
+        const { data } = await sb!.auth.getSession();
+        const accessToken = data?.session?.access_token;
+        if (!accessToken) return;
+
+        const saved = await getUserDropSubscriptions({ authToken: accessToken });
+        if (!active || !saved.authenticated) return;
+
+        if (saved.email) {
+          setGuestEmail(saved.email);
+        }
+
+        const isSaved = saved.targets.some(
+          (t) => t.targetType === targetType && t.targetId === targetId,
+        );
+        if (isSaved) {
+          setFollowed(true);
+        }
+      } catch {
+        // Non-blocking fallback
+      }
+    }
+
+    void restoreSignedInPreference();
+    return () => {
+      active = false;
+    };
+  }, [targetType, targetId, initialFollowed]);
 
   const persistSubscription = async (
     nextFollowed: boolean,
@@ -77,6 +121,14 @@ export function FollowToggle({
       if (nextFollowed && res.requiresEmail) {
         setShowEmailPrompt(true);
         setStatusNote(null);
+        return;
+      }
+
+      if (!nextFollowed && res.requiresAuthOrEmailLink) {
+        // Local UI toggle resets for guest session while instructing email-link opt-out
+        setFollowed(false);
+        setStatusNote(res.error || "Use the unsubscribe link in your email to stop future alerts.");
+        onToggle?.(false);
         return;
       }
 

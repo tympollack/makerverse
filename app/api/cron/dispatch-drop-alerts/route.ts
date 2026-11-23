@@ -41,7 +41,7 @@ function isAuthorizedCronRequest(request: NextRequest): {
   return { authorized: matched, configured: true };
 }
 
-export async function POST(request: NextRequest) {
+async function handleCronDispatch(request: NextRequest, batchIdFromBody?: string) {
   const auth = isAuthorizedCronRequest(request);
   if (!auth.configured) {
     return NextResponse.json(
@@ -63,14 +63,8 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    let batchId: string | undefined;
-    const rawBody = await request.text();
-    if (rawBody.trim()) {
-      const parsed = JSON.parse(rawBody) as { batchId?: unknown };
-      if (typeof parsed.batchId === "string" && parsed.batchId.trim()) {
-        batchId = parsed.batchId.trim();
-      }
-    }
+    const queryBatchId = request.nextUrl.searchParams.get("batchId")?.trim();
+    const batchId = batchIdFromBody || queryBatchId || undefined;
 
     const result = await dispatchPendingDropAlerts({
       supabase,
@@ -81,6 +75,31 @@ export async function POST(request: NextRequest) {
       success: true,
       ...result,
     });
+  } catch (err: unknown) {
+    const message =
+      err instanceof Error ? err.message : "Failed to dispatch drop alerts";
+    return NextResponse.json(
+      { success: false, error: message },
+      { status: 500 },
+    );
+  }
+}
+
+export async function GET(request: NextRequest) {
+  return handleCronDispatch(request);
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    let batchId: string | undefined;
+    const rawBody = await request.text();
+    if (rawBody.trim()) {
+      const parsed = JSON.parse(rawBody) as { batchId?: unknown };
+      if (typeof parsed.batchId === "string" && parsed.batchId.trim()) {
+        batchId = parsed.batchId.trim();
+      }
+    }
+    return handleCronDispatch(request, batchId);
   } catch (err: unknown) {
     const message =
       err instanceof Error ? err.message : "Failed to dispatch drop alerts";

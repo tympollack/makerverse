@@ -18,6 +18,11 @@ import { HardwareInspectionModal } from "@/components/shop/HardwareInspectionMod
 import { ProductVisual } from "@/components/shop/ProductVisual";
 import { UpcomingDropsRail } from "@/components/shop/UpcomingDropsRail";
 import { DropShareBar } from "@/components/shop/DropShareBar";
+import {
+  ActiveBatchBanner,
+  fetchActiveBatchByParam,
+} from "@/components/shop/ActiveBatchBanner";
+import type { ProductBatch } from "@/lib/drops/lifecycle";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import {
   BRAND_PASSPORT,
@@ -367,7 +372,7 @@ function ProductCard({
               target="product"
               size="sm"
               targetType="product_line"
-              targetId={product.id}
+              targetId={product.productLineId || product.id}
               initialFollowed={product.isFollowed}
               variant="ghost"
             />
@@ -751,6 +756,22 @@ export default function BrandShopPage({
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedTier, setSelectedTier] = useState<string>("ALL");
   const [inStockOnly, setInStockOnly] = useState(false);
+  const [activeBatch, setActiveBatch] = useState<ProductBatch | null>(null);
+
+  useEffect(() => {
+    const batchParam =
+      typeof window !== "undefined"
+        ? new URLSearchParams(window.location.search).get("batch")
+        : null;
+    if (!batchParam) return;
+    let active = true;
+    fetchActiveBatchByParam(brandHandle, batchParam).then((matched) => {
+      if (active && matched) setActiveBatch(matched);
+    });
+    return () => {
+      active = false;
+    };
+  }, [brandHandle]);
 
   // Fetch live catalog from database-backed API
   useEffect(() => {
@@ -878,8 +899,13 @@ export default function BrandShopPage({
       const matchesStock = inStockOnly ? product.stock > 0 : true;
 
       return matchesSearch && matchesTier && matchesStock;
+    }).sort((a, b) => {
+      if (!activeBatch) return 0;
+      const aMatch = a.id === activeBatch.productId || (Boolean(activeBatch.productLineId) && a.productLineId === activeBatch.productLineId);
+      const bMatch = b.id === activeBatch.productId || (Boolean(activeBatch.productLineId) && b.productLineId === activeBatch.productLineId);
+      return Number(bMatch) - Number(aMatch);
     });
-  }, [productsState, searchQuery, selectedTier, inStockOnly]);
+  }, [productsState, searchQuery, selectedTier, inStockOnly, activeBatch]);
 
   return (
     <main className="min-h-screen bg-[#1A1A1A] text-[#F9F9F9] selection:bg-[#CC5500]/40 selection:text-white">
@@ -955,6 +981,7 @@ export default function BrandShopPage({
 
         {/* Product Catalog Section */}
         <section id="catalog" className="space-y-6">
+          <ActiveBatchBanner batch={activeBatch} clearHref={`/${brandHandle}#catalog`} />
           {/* Header & Filter Controls */}
           <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 pb-2 border-b border-white/8">
             <div>
