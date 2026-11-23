@@ -19,6 +19,7 @@ export async function POST(request: NextRequest) {
 
     // Never trust client-supplied userId; resolve only from verified Bearer JWT
     let verifiedUserId: string | null = null;
+    let verifiedUserEmail = "";
     const authHeader = request.headers.get("authorization");
     if (authHeader?.startsWith("Bearer ") && supabase) {
       const token = authHeader.substring(7).trim();
@@ -26,11 +27,16 @@ export async function POST(request: NextRequest) {
         const { data: userRes, error: authErr } = await supabase.auth.getUser(token);
         if (!authErr && userRes?.user?.id) {
           verifiedUserId = userRes.user.id;
+          verifiedUserEmail = userRes.user.email
+            ? userRes.user.email.trim().toLowerCase()
+            : "";
         }
       }
     }
 
-    if (!verifiedUserId && (!email || !email.includes("@"))) {
+    const effectiveEmail = email || verifiedUserEmail;
+
+    if (!verifiedUserId && (!effectiveEmail || !effectiveEmail.includes("@"))) {
       return NextResponse.json(
         { error: "Valid email address or authenticated session required" },
         { status: 400 },
@@ -69,7 +75,7 @@ export async function POST(request: NextRequest) {
       ).insert({
         batch_id: batchId,
         user_id: verifiedUserId,
-        email: email || null,
+        email: effectiveEmail || null,
         verified: Boolean(verifiedUserId),
       });
 
@@ -79,6 +85,28 @@ export async function POST(request: NextRequest) {
           { success: false, error: "Unable to register launch alert" },
           { status: 500 },
         );
+      }
+
+      if (effectiveEmail && effectiveEmail.includes("@")) {
+        const { error: subErr } = await (
+          supabase.from("drop_subscriptions" as any) as any
+        ).upsert(
+          {
+            email: effectiveEmail,
+            user_id: verifiedUserId,
+            target_type: "batch",
+            target_id: batchId,
+            is_active: true,
+          },
+          { onConflict: "email,target_type,target_id" },
+        );
+
+        if (subErr) {
+          return NextResponse.json(
+            { success: false, error: "Unable to persist email alert subscription" },
+            { status: 500 },
+          );
+        }
       }
 
       return NextResponse.json({

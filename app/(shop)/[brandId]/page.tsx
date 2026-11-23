@@ -170,6 +170,8 @@ function BrandHero({
             <FollowToggle
               target="brand"
               size="lg"
+              targetType="brand"
+              targetId={brand.id}
               initialFollowed={isFollowing}
               label="Follow Brand Line"
               followingLabel="Following Brand Line"
@@ -364,6 +366,8 @@ function ProductCard({
             <FollowToggle
               target="product"
               size="sm"
+              targetType="product_line"
+              targetId={product.id}
               initialFollowed={product.isFollowed}
               variant="ghost"
             />
