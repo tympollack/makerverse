@@ -1,7 +1,7 @@
 // app/(admin)/vendor/layout.tsx
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
@@ -14,11 +14,13 @@ import {
   ChevronLeft,
   ChevronRight,
   LayoutDashboard,
-  ShieldCheck,
+  Store,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { EcosystemTelemetryBar } from "@/components/admin/EcosystemTelemetryBar";
 import { VersionReleaseBadge } from "@/components/admin/VersionReleaseBadge";
+import { getSupabaseBrowserClient } from "@/lib/supabase/client";
+import { getVendorAuthorizedBrands } from "@/app/(admin)/vendor/schedule/actions";
 
 // ─── Nav Items ────────────────────────────────────────────────────────────────
 
@@ -65,7 +67,34 @@ const NAV_ITEMS = [
 
 export default function VendorLayout({ children }: { children: React.ReactNode }) {
   const [collapsed, setCollapsed] = useState(false);
+  const [activeBrand, setActiveBrand] = useState<{ name: string; handle: string } | null>(null);
   const pathname = usePathname();
+
+  useEffect(() => {
+    const sb = getSupabaseBrowserClient();
+    if (!sb) return;
+    let active = true;
+    async function loadActiveStudio() {
+      try {
+        const { data } = await sb!.auth.getSession();
+        const token = data?.session?.access_token;
+        if (!token || !active) return;
+        const result = await getVendorAuthorizedBrands({ authToken: token });
+        if (active && result.authorized && result.brands.length > 0) {
+          setActiveBrand({
+            name: result.brands[0].name,
+            handle: result.brands[0].handle,
+          });
+        }
+      } catch {
+        // Leave unlinked studio state
+      }
+    }
+    void loadActiveStudio();
+    return () => {
+      active = false;
+    };
+  }, []);
 
   return (
     <div className="flex min-h-screen bg-[#1A1A1A] text-[#F9F9F9]">
@@ -153,16 +182,20 @@ export default function VendorLayout({ children }: { children: React.ReactNode }
           })}
         </nav>
 
-        {/* Studio Provenance Seal */}
+        {/* Active Merchant Studio Card */}
         {!collapsed && (
           <div className="px-3 pb-3 space-y-2">
             <div className="p-2.5 rounded-lg bg-white/3 border border-white/6 flex items-center gap-2.5">
               <div className="w-6 h-6 rounded-md bg-[#CC5500]/15 border border-[#CC5500]/30 flex items-center justify-center flex-shrink-0">
-                <ShieldCheck className="w-3.5 h-3.5 text-[#CC5500]" />
+                <Store className="w-3.5 h-3.5 text-[#CC5500]" />
               </div>
               <div className="min-w-0 flex-1">
-                <p className="text-[10px] font-semibold text-white/80 truncate">The Forge Collective</p>
-                <p className="text-[9px] font-mono text-white/30 truncate">0x4f3E...9aB2 · Verified</p>
+                <p className="text-[10px] font-semibold text-white/80 truncate">
+                  {activeBrand ? activeBrand.name : "Merchant Studio"}
+                </p>
+                <p className="text-[9px] font-mono text-white/35 truncate">
+                  {activeBrand ? `@${activeBrand.handle}` : "No studio connected"}
+                </p>
               </div>
             </div>
             <div className="px-2 py-1 rounded bg-black/30 border border-white/5 flex items-center justify-between">

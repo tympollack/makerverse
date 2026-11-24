@@ -78,14 +78,22 @@ const DEFAULT_STATION: BoothInstallation = {
   id: "inst_default", name: "Unconfigured Booth Station", type: "Interactive Shoppable Booth Engine", chipCount: 0, status: "OFFLINE", lastPing: "never", location: "Pending Deployment", triggerCount: 0, hardwareUid: "NXP-UNASSIGNED", stationIp: "0.0.0.0", readerModel: "NXP PN532 / NTAG424 Reader",
 };
 
-export function BoothEngine() {
+export function BoothEngine({
+  initialInstallations = MOCK_INSTALLATIONS,
+  initialGuestbook = INITIAL_GUESTBOOK_ENTRIES,
+  initialRaffles = INITIAL_RAFFLE_ATTEMPTS,
+}: {
+  initialInstallations?: BoothInstallation[];
+  initialGuestbook?: GuestbookEntry[];
+  initialRaffles?: RaffleAttempt[];
+} = {}) {
   // Selected Installation & Active Tab
-  const [installations] = useState<BoothInstallation[]>(MOCK_INSTALLATIONS);
-  const [selectedStationId, setSelectedStationId] = useState<string>(MOCK_INSTALLATIONS[0]?.id ?? DEFAULT_STATION.id);
+  const [installations] = useState<BoothInstallation[]>(initialInstallations);
+  const [selectedStationId, setSelectedStationId] = useState<string>(initialInstallations[0]?.id ?? DEFAULT_STATION.id);
   const [mode, setMode] = useState<BoothEngineMode>("GUESTBOOK");
 
   // Guestbook Mode State
-  const [guestbookEntries, setGuestbookEntries] = useState<GuestbookEntry[]>(INITIAL_GUESTBOOK_ENTRIES);
+  const [guestbookEntries, setGuestbookEntries] = useState<GuestbookEntry[]>(initialGuestbook);
   const [guestFilter, setGuestFilter] = useState<"ALL" | "MEMBERS" | "COMMENTS" | "VIPS">("ALL");
   const [guestSearch, setGuestSearch] = useState("");
   const [isSimulatingFeed, setIsSimulatingFeed] = useState(false);
@@ -93,7 +101,7 @@ export function BoothEngine() {
 
   // Raffle Mode State
   const [winProbability, setWinProbability] = useState<number>(25); // 25% default (1 in 4)
-  const [raffleAttempts, setRaffleAttempts] = useState<RaffleAttempt[]>(INITIAL_RAFFLE_ATTEMPTS);
+  const [raffleAttempts, setRaffleAttempts] = useState<RaffleAttempt[]>(initialRaffles);
   const [activeAttendeeHandle, setActiveAttendeeHandle] = useState("@solstice_made");
   const [rubProgress, setRubProgress] = useState(0);
   const [isRubbing, setIsRubbing] = useState(false);

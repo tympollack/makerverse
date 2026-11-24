@@ -884,7 +884,7 @@ export function HoldEngineMonitor({
 
   const handleRefresh = () => {
     setLastSync(new Date());
-    setHolds([...ACTIVE_HOLDS]);
+    setHolds([...initialHolds]);
   };
 
   return (
