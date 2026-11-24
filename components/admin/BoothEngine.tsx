@@ -8,7 +8,6 @@ import {
 } from "lucide-react";
 import { FrostedCard } from "@/components/ui/FrostedCard";
 import { MonoValue, ChipUID } from "@/components/ui/MonoValue";
-import { VersionReleaseBadge } from "@/components/admin/VersionReleaseBadge";
 import {
   MOCK_INSTALLATIONS,
   INITIAL_GUESTBOOK_ENTRIES,
@@ -288,7 +287,6 @@ export function BoothEngine({
               <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 font-semibold uppercase tracking-wider">
                 ● Live Engine
               </span>
-              <VersionReleaseBadge variant="pill" />
             </div>
             <p className="text-xs font-mono text-white/40 mt-0.5 truncate">
               {activeStation.name} · {activeStation.location} · {activeStation.hardwareUid}
@@ -312,9 +310,9 @@ export function BoothEngine({
             </select>
           </div>
 
-          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/4 border border-white/8 font-mono text-[11px] text-cyan-300 flex-shrink-0">
+          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/4 border border-white/8 font-mono text-[11px] text-white/75 flex-shrink-0">
             <Wifi className="w-3.5 h-3.5 text-emerald-400" />
-            <span>12ms</span>
+            <span>{activeStation.status}</span>
           </div>
         </div>
       </div>
@@ -998,8 +996,8 @@ export function BoothEngine({
                   <span className="text-white/80">{activeStation.stationIp}</span>
                 </div>
                 <div className="py-2.5 flex justify-between">
-                  <span className="text-white/40">Telemetry Health:</span>
-                  <span className="text-emerald-400 font-bold">ONLINE · 12ms Latency</span>
+                  <span className="text-white/40">Station Status:</span>
+                  <span className="text-emerald-400 font-bold">{activeStation.status}</span>
                 </div>
               </div>
             </FrostedCard>

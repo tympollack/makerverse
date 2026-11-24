@@ -15,7 +15,6 @@ import { FrostedCard } from "@/components/ui/FrostedCard";
 import { MonoValue, PriceTag } from "@/components/ui/MonoValue";
 import { StatusBadge, ChipTierBadge } from "@/components/ui/StatusBadge";
 import { CountdownTimer } from "@/components/ui/CountdownTimer";
-import { VersionReleaseBadge } from "@/components/admin/VersionReleaseBadge";
 import { resolveBatchLifecycleStatus, type ProductBatch } from "@/lib/drops/lifecycle";
 import type { HoldEntry, InventoryItem, POSTransaction } from "@/lib/mock/adminData";
 
@@ -73,14 +72,31 @@ export function VendorDashboardClient({
 
   return (
     <div className="space-y-8 max-w-5xl">
-      {/* Gateway & SDK Release Banner */}
-      <motion.div
-        initial={{ opacity: 0, y: -6 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.25 }}
-      >
-        <VersionReleaseBadge variant="banner" />
-      </motion.div>
+      {/* Merchant Studio Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-bold text-white tracking-tight">
+            Merchant Studio Overview
+          </h1>
+          <p className="text-xs text-white/50 mt-0.5">
+            Track live drops, active cart holds, in-person booth sales, and inventory levels.
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Link
+            href="/vendor/schedule"
+            className="px-3 py-1.5 rounded-lg bg-[#CC5500] hover:bg-[#e0621a] text-white font-mono text-xs font-semibold transition-colors"
+          >
+            Schedule Drop
+          </Link>
+          <Link
+            href="/vendor/pos"
+            className="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-white/80 font-mono text-xs transition-colors"
+          >
+            Open POS
+          </Link>
+        </div>
+      </div>
 
       {/* Stat cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">

@@ -40,10 +40,15 @@ describe("TASK-MKR-PURGE-FORGE-COLLECTIVE: Merchant Cleanup & Zero-State Fidelit
 
     expect(screen.queryByText(/The Forge Collective/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/0x4f3E/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/LIVE TELEMETRY/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/us-west-pdx-01/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/node_status/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/makerverse_sdk/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/SDK v0\.1\.0/i)).not.toBeInTheDocument();
     expect(screen.getByText("Merchant Studio")).toBeInTheDocument();
   });
 
-  it("renders clean zero states in VendorDashboardClient when all datasets are empty", () => {
+  it("renders clean zero states in VendorDashboardClient without gateway diagnostics clutter", () => {
     render(
       <VendorDashboardClient
         inventory={[]}
@@ -53,6 +58,9 @@ describe("TASK-MKR-PURGE-FORGE-COLLECTIVE: Merchant Cleanup & Zero-State Fidelit
       />,
     );
 
+    expect(screen.getByText(/Merchant Studio Overview/i)).toBeInTheDocument();
+    expect(screen.queryByText(/Ecosystem Gateway Online/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Gateway Diagnostics/i)).not.toBeInTheDocument();
     expect(screen.getByText(/No active cart holds right now/i)).toBeInTheDocument();
     expect(screen.getByText(/No POS transactions recorded yet/i)).toBeInTheDocument();
     expect(screen.getByText(/No SKUs registered yet/i)).toBeInTheDocument();
