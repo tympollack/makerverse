@@ -24,7 +24,19 @@ const MEDIUM_OPTIONS: PilotApplicationInput["mediumCraft"][] = [
   "Other",
 ];
 
-export function FoundingApplicationForm() {
+interface FoundingApplicationFieldsProps {
+  idPrefix?: string;
+  submitLabel?: string;
+  onSuccess?: (result: PilotApplicationResult) => void;
+  className?: string;
+}
+
+export function FoundingApplicationFields({
+  idPrefix = "apply",
+  submitLabel = "Submit Founding Cohort Application",
+  onSuccess,
+  className = "",
+}: FoundingApplicationFieldsProps) {
   const [artistBrandName, setArtistBrandName] = useState("");
   const [mediumCraft, setMediumCraft] =
     useState<PilotApplicationInput["mediumCraft"]>("Visual Art");
@@ -53,6 +65,7 @@ export function FoundingApplicationForm() {
         setPortfolioHandle("");
         setEmail("");
         setNextShowFestival("");
+        onSuccess?.(res);
       }
     } catch {
       setResult({
@@ -67,6 +80,148 @@ export function FoundingApplicationForm() {
     }
   };
 
+  return (
+    <form onSubmit={handleSubmit} className={`space-y-4 ${className}`}>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div>
+          <label
+            htmlFor={`${idPrefix}-brand-name`}
+            className="block font-mono text-xs text-white/70 uppercase mb-1.5"
+          >
+            Artist / Brand Name *
+          </label>
+          <input
+            id={`${idPrefix}-brand-name`}
+            type="text"
+            required
+            value={artistBrandName}
+            onChange={(e) => setArtistBrandName(e.target.value)}
+            placeholder="e.g. Get Bent Clothing / Astraea Studio"
+            className="w-full rounded-xl bg-black/50 border border-white/15 px-3.5 py-2.5 text-sm text-[#F9F9F9] placeholder:text-white/30 focus:outline-none focus:border-[#CC5500]"
+          />
+        </div>
+
+        <div>
+          <label
+            htmlFor={`${idPrefix}-medium`}
+            className="block font-mono text-xs text-white/70 uppercase mb-1.5"
+          >
+            Medium / Craft *
+          </label>
+          <select
+            id={`${idPrefix}-medium`}
+            value={mediumCraft}
+            onChange={(e) =>
+              setMediumCraft(
+                e.target.value as PilotApplicationInput["mediumCraft"],
+              )
+            }
+            className="w-full rounded-xl bg-black/50 border border-white/15 px-3.5 py-2.5 text-sm font-mono text-[#F9F9F9] focus:outline-none focus:border-[#CC5500] cursor-pointer"
+          >
+            {MEDIUM_OPTIONS.map((opt) => (
+              <option key={opt} value={opt} className="bg-[#1A1A1A]">
+                {opt}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div>
+          <label
+            htmlFor={`${idPrefix}-portfolio`}
+            className="block font-mono text-xs text-white/70 uppercase mb-1.5"
+          >
+            Instagram / Portfolio Handle *
+          </label>
+          <input
+            id={`${idPrefix}-portfolio`}
+            type="text"
+            required
+            value={portfolioHandle}
+            onChange={(e) => setPortfolioHandle(e.target.value)}
+            placeholder="@yourhandle or portfolio.com"
+            className="w-full rounded-xl bg-black/50 border border-white/15 px-3.5 py-2.5 text-sm font-mono text-[#F9F9F9] placeholder:text-white/30 focus:outline-none focus:border-[#CC5500]"
+          />
+        </div>
+
+        <div>
+          <label
+            htmlFor={`${idPrefix}-email`}
+            className="block font-mono text-xs text-white/70 uppercase mb-1.5"
+          >
+            Email *
+          </label>
+          <input
+            id={`${idPrefix}-email`}
+            type="email"
+            required
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="artist@studio.com"
+            className="w-full rounded-xl bg-black/50 border border-white/15 px-3.5 py-2.5 text-sm font-mono text-[#F9F9F9] placeholder:text-white/30 focus:outline-none focus:border-[#CC5500]"
+          />
+        </div>
+      </div>
+
+      <div>
+        <label
+          htmlFor={`${idPrefix}-festival`}
+          className="block font-mono text-xs text-white/70 uppercase mb-1.5"
+        >
+          Next Show / Festival (Optional)
+        </label>
+        <input
+          id={`${idPrefix}-festival`}
+          type="text"
+          value={nextShowFestival}
+          onChange={(e) => setNextShowFestival(e.target.value)}
+          placeholder="e.g. Electric Forest, Renegade Craft Fair, Black Friday Drop"
+          className="w-full rounded-xl bg-black/50 border border-white/15 px-3.5 py-2.5 text-sm text-[#F9F9F9] placeholder:text-white/30 focus:outline-none focus:border-[#CC5500]"
+        />
+      </div>
+
+      <button
+        type="submit"
+        disabled={isSubmitting}
+        className="w-full py-3.5 px-6 rounded-xl bg-[#CC5500] hover:bg-[#e0621a] text-[#F9F9F9] font-mono text-xs sm:text-sm font-bold uppercase tracking-wider shadow-[0_0_24px_rgba(204,85,0,0.4)] transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+      >
+        <Send className="w-4 h-4" />
+        <span>
+          {isSubmitting ? "Registering Founding Maker Application..." : submitLabel}
+        </span>
+      </button>
+
+      {result && (
+        <div
+          role="status"
+          className={`p-4 rounded-xl border font-mono text-xs flex items-start gap-3 ${
+            result.success
+              ? "bg-emerald-500/10 border-emerald-500/35 text-emerald-300"
+              : "bg-red-500/10 border-red-500/35 text-red-300"
+          }`}
+        >
+          {result.success ? (
+            <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0 mt-0.5" />
+          ) : (
+            <AlertCircle className="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5" />
+          )}
+          <div className="space-y-1">
+            <p className="font-bold">
+              {result.success
+                ? `Application Confirmed · Ref ${result.applicationId}`
+                : "Submission Error"}
+            </p>
+            <p className="text-white/80">{result.message}</p>
+          </div>
+        </div>
+      )}
+    </form>
+  );
+}
+
+export function FoundingApplicationForm() {
   return (
     <section id="apply" className="scroll-mt-24">
       <div className="bg-white/5 backdrop-blur-md border border-white/10 shadow-2xl rounded-xl p-6 sm:p-10 relative overflow-hidden">
@@ -85,7 +240,7 @@ export function FoundingApplicationForm() {
             </h2>
 
             <p className="text-sm text-white/65 leading-relaxed">
-              Apply for our Wave 1 creator cohort to receive pre-encoded NTAG213 / NTAG424 starter reels, locked 2% base fees, and dedicated drop engineering for your next gallery opening, festival booth, or 24-hour batch release.
+              Apply for Wave 1 to receive 25 free pre-encoded starter tags, locked 2% base fees, and dedicated drop onboarding for your next gallery opening, festival booth, or 24-hour release.
             </p>
 
             <div className="space-y-2.5 font-mono text-xs text-white/75 pt-2">
@@ -99,151 +254,13 @@ export function FoundingApplicationForm() {
               </div>
               <div className="flex items-center gap-2.5">
                 <ShieldCheck className="w-4 h-4 text-emerald-400 flex-shrink-0" />
-                <span>Instant Booth POS & Soft-Close Auction Hopper</span>
+                <span>Instant Booth POS &amp; Timed Drop Scheduler</span>
               </div>
             </div>
           </div>
 
-          {/* Right 7 cols: Form */}
-          <form onSubmit={handleSubmit} className="lg:col-span-7 space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label
-                  htmlFor="apply-brand-name"
-                  className="block font-mono text-xs text-white/70 uppercase mb-1.5"
-                >
-                  Artist / Brand Name *
-                </label>
-                <input
-                  id="apply-brand-name"
-                  type="text"
-                  required
-                  value={artistBrandName}
-                  onChange={(e) => setArtistBrandName(e.target.value)}
-                  placeholder="e.g. Get Bent Clothing / Astraea Studio"
-                  className="w-full rounded-xl bg-black/50 border border-white/15 px-3.5 py-2.5 text-sm text-[#F9F9F9] placeholder:text-white/30 focus:outline-none focus:border-[#CC5500]"
-                />
-              </div>
-
-              <div>
-                <label
-                  htmlFor="apply-medium"
-                  className="block font-mono text-xs text-white/70 uppercase mb-1.5"
-                >
-                  Medium / Craft *
-                </label>
-                <select
-                  id="apply-medium"
-                  value={mediumCraft}
-                  onChange={(e) =>
-                    setMediumCraft(
-                      e.target.value as PilotApplicationInput["mediumCraft"],
-                    )
-                  }
-                  className="w-full rounded-xl bg-black/50 border border-white/15 px-3.5 py-2.5 text-sm font-mono text-[#F9F9F9] focus:outline-none focus:border-[#CC5500] cursor-pointer"
-                >
-                  {MEDIUM_OPTIONS.map((opt) => (
-                    <option key={opt} value={opt} className="bg-[#1A1A1A]">
-                      {opt}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label
-                  htmlFor="apply-portfolio"
-                  className="block font-mono text-xs text-white/70 uppercase mb-1.5"
-                >
-                  Instagram / Portfolio Handle *
-                </label>
-                <input
-                  id="apply-portfolio"
-                  type="text"
-                  required
-                  value={portfolioHandle}
-                  onChange={(e) => setPortfolioHandle(e.target.value)}
-                  placeholder="@yourhandle or portfolio.com"
-                  className="w-full rounded-xl bg-black/50 border border-white/15 px-3.5 py-2.5 text-sm font-mono text-[#F9F9F9] placeholder:text-white/30 focus:outline-none focus:border-[#CC5500]"
-                />
-              </div>
-
-              <div>
-                <label
-                  htmlFor="apply-email"
-                  className="block font-mono text-xs text-white/70 uppercase mb-1.5"
-                >
-                  Email *
-                </label>
-                <input
-                  id="apply-email"
-                  type="email"
-                  required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="artist@studio.com"
-                  className="w-full rounded-xl bg-black/50 border border-white/15 px-3.5 py-2.5 text-sm font-mono text-[#F9F9F9] placeholder:text-white/30 focus:outline-none focus:border-[#CC5500]"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label
-                htmlFor="apply-festival"
-                className="block font-mono text-xs text-white/70 uppercase mb-1.5"
-              >
-                Next Show / Festival (Optional)
-              </label>
-              <input
-                id="apply-festival"
-                type="text"
-                value={nextShowFestival}
-                onChange={(e) => setNextShowFestival(e.target.value)}
-                placeholder="e.g. Electric Forest, Renegade Craft Fair, Black Friday Drop"
-                className="w-full rounded-xl bg-black/50 border border-white/15 px-3.5 py-2.5 text-sm text-[#F9F9F9] placeholder:text-white/30 focus:outline-none focus:border-[#CC5500]"
-              />
-            </div>
-
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="w-full py-3.5 px-6 rounded-xl bg-[#CC5500] hover:bg-[#e0621a] text-[#F9F9F9] font-mono text-xs sm:text-sm font-bold uppercase tracking-wider shadow-[0_0_24px_rgba(204,85,0,0.4)] transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
-            >
-              <Send className="w-4 h-4" />
-              <span>
-                {isSubmitting
-                  ? "Registering Founding Maker Application..."
-                  : "Submit Founding Cohort Application"}
-              </span>
-            </button>
-
-            {result && (
-              <div
-                role="status"
-                className={`p-4 rounded-xl border font-mono text-xs flex items-start gap-3 ${
-                  result.success
-                    ? "bg-emerald-500/10 border-emerald-500/35 text-emerald-300"
-                    : "bg-red-500/10 border-red-500/35 text-red-300"
-                }`}
-              >
-                {result.success ? (
-                  <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0 mt-0.5" />
-                ) : (
-                  <AlertCircle className="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5" />
-                )}
-                <div className="space-y-1">
-                  <p className="font-bold">
-                    {result.success
-                      ? `Application Confirmed · Ref ${result.applicationId}`
-                      : "Submission Error"}
-                  </p>
-                  <p className="text-white/80">{result.message}</p>
-                </div>
-              </div>
-            )}
-          </form>
+          {/* Right 7 cols: Shared Intake Form */}
+          <FoundingApplicationFields idPrefix="apply" className="lg:col-span-7" />
         </div>
       </div>
     </section>

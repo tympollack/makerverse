@@ -1,8 +1,9 @@
 // components/__tests__/MakerOnboardingAndGetBent.test.tsx
 import React from "react";
 import { describe, it, expect } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { submitPilotApplication } from "@/app/actions/pilotApplication";
 import MakerOnboardingLandingPage from "@/app/page";
 import GetBentFlagshipDropPage from "@/app/(shop)/get-bent/page";
 import { InventoryManager } from "@/components/admin/InventoryManager";
@@ -133,6 +134,65 @@ describe("Task 2: Public Maker & Artist Onboarding Page (app/page.tsx)", () => {
     expect(
       await screen.findByText(/Application Confirmed/i),
     ).toBeInTheDocument();
+  });
+
+  it("opens inline Founding Maker modal when 'Claim a Founding Maker Shop' is clicked and submits to intake", async () => {
+    const user = userEvent.setup();
+    render(<MakerOnboardingLandingPage />);
+
+    const ctaBtn = screen.getByRole("button", {
+      name: /Claim a Founding Maker Shop/i,
+    });
+    await user.click(ctaBtn);
+
+    const modal = screen.getByTestId("founding-maker-modal");
+    const modalScope = within(modal);
+
+    expect(
+      modalScope.getByRole("button", { name: /Submit Founding Shop Claim/i }),
+    ).toBeInTheDocument();
+
+    await user.type(
+      modalScope.getByLabelText(/Artist \/ Brand Name/i),
+      "Solstice Glassworks",
+    );
+    await user.selectOptions(
+      modalScope.getByLabelText(/Medium \/ Craft/i),
+      "Visual Art",
+    );
+    await user.type(
+      modalScope.getByLabelText(/Instagram \/ Portfolio Handle/i),
+      "@solsticeglass",
+    );
+    await user.type(
+      modalScope.getByLabelText(/Email/i),
+      "studio@solsticeglass.art",
+    );
+
+    await user.click(
+      modalScope.getByRole("button", { name: /Submit Founding Shop Claim/i }),
+    );
+
+    expect(
+      await modalScope.findByText(/Application Confirmed/i),
+    ).toBeInTheDocument();
+
+    await user.click(modalScope.getByRole("button", { name: "Close" }));
+    expect(
+      screen.queryByTestId("founding-maker-modal"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("rejects malformed email addresses cleanly in submitPilotApplication", async () => {
+    const res = await submitPilotApplication({
+      artistBrandName: "Test Studio",
+      mediumCraft: "Visual Art",
+      portfolioHandle: "@teststudio",
+      email: "not-an-email",
+    });
+
+    expect(res.success).toBe(false);
+    expect(res.error).toBe("VALIDATION_ERROR");
   });
 });
 

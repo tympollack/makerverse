@@ -1,6 +1,7 @@
 // components/onboarding/MakerHomeClient.tsx
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { ShieldCheck, Sparkles, Flame, Store } from "lucide-react";
 import { NfcPassportSimulator } from "@/components/onboarding/NfcPassportSimulator";
@@ -10,8 +11,11 @@ import {
   CreatorEconomicsSection,
 } from "@/components/onboarding/OnboardingSections";
 import { FoundingApplicationForm } from "@/components/onboarding/FoundingApplicationForm";
+import { FoundingMakerModal } from "@/components/onboarding/FoundingMakerModal";
 
 export function MakerHomeClient() {
+  const [isClaimModalOpen, setIsClaimModalOpen] = useState(false);
+
   return (
     <main className="min-h-screen bg-[#1A1A1A] text-[#F9F9F9] selection:bg-[#CC5500]/40 selection:text-white">
       {/* Top Navigation */}
@@ -56,12 +60,13 @@ export function MakerHomeClient() {
               <span>Vendor Studio</span>
             </Link>
 
-            <a
-              href="#apply"
-              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-[#CC5500] hover:bg-[#e0621a] font-mono text-xs font-bold text-white shadow-[0_0_16px_rgba(204,85,0,0.35)] transition-colors"
+            <button
+              type="button"
+              onClick={() => setIsClaimModalOpen(true)}
+              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-[#CC5500] hover:bg-[#e0621a] font-mono text-xs font-bold text-white shadow-[0_0_16px_rgba(204,85,0,0.35)] transition-colors cursor-pointer"
             >
               <span>Claim a Shop</span>
-            </a>
+            </button>
           </div>
         </div>
       </nav>
@@ -86,12 +91,13 @@ export function MakerHomeClient() {
 
             {/* Primary & Secondary CTAs */}
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3.5 pt-2">
-              <a
-                href="#apply"
-                className="px-6 py-3.5 rounded-xl bg-[#CC5500] hover:bg-[#e0621a] text-[#F9F9F9] font-mono text-xs sm:text-sm font-bold uppercase tracking-wider shadow-[0_0_24px_rgba(204,85,0,0.4)] transition-all text-center"
+              <button
+                type="button"
+                onClick={() => setIsClaimModalOpen(true)}
+                className="px-6 py-3.5 rounded-xl bg-[#CC5500] hover:bg-[#e0621a] text-[#F9F9F9] font-mono text-xs sm:text-sm font-bold uppercase tracking-wider shadow-[0_0_24px_rgba(204,85,0,0.4)] transition-all text-center cursor-pointer"
               >
                 Claim a Founding Maker Shop
-              </a>
+              </button>
 
               <Link
                 href="/get-bent"
@@ -159,6 +165,11 @@ export function MakerHomeClient() {
           </div>
         </footer>
       </div>
+
+      <FoundingMakerModal
+        isOpen={isClaimModalOpen}
+        onClose={() => setIsClaimModalOpen(false)}
+      />
     </main>
   );
 }
