@@ -2,6 +2,7 @@
 /**
  * Comprehensive TypeScript database definitions mapped to the `makerverse` schema in Supabase.
  */
+import type { MakerverseEmailTables } from "./emailTypes";
 
 export type Json =
   | string
@@ -16,7 +17,7 @@ export type ChipLockStatus = "UNLOCKED" | "PASSWORD_PROTECTED" | "LOCKED_BITS";
 export type MintStatus = "UNCLAIMED" | "MINTED_INITIAL" | "RESOLD";
 export type HoldStatus = "ACTIVE_HOLD" | "PAYMENT_RETRYING" | "EXPIRED_RELEASE" | "FULFILLED";
 
-export interface MakerverseTables {
+export interface MakerverseTables extends MakerverseEmailTables {
   brands: {
     Row: {
       id: string;
@@ -600,69 +601,6 @@ export interface MakerverseTables {
       vanity_auction_enabled?: boolean;
       vanity_serials?: Json;
       metadata?: Json;
-      created_at?: string;
-      updated_at?: string;
-    };
-    Relationships: [];
-  };
-  drop_notify_subscriptions: {
-    Row: {
-      id: string;
-      batch_id: string;
-      user_id: string | null;
-      email: string | null;
-      verified: boolean;
-      created_at: string;
-    };
-    Insert: {
-      id?: string;
-      batch_id: string;
-      user_id?: string | null;
-      email?: string | null;
-      verified?: boolean;
-      created_at?: string;
-    };
-    Update: {
-      id?: string;
-      batch_id?: string;
-      user_id?: string | null;
-      email?: string | null;
-      verified?: boolean;
-      created_at?: string;
-    };
-    Relationships: [];
-  };
-  drop_subscriptions: {
-    Row: {
-      id: string;
-      email: string;
-      user_id: string | null;
-      target_type: "brand" | "product_line" | "batch";
-      target_id: string;
-      unsubscribe_token: string;
-      is_active: boolean;
-      created_at: string;
-      updated_at: string;
-    };
-    Insert: {
-      id?: string;
-      email: string;
-      user_id?: string | null;
-      target_type: "brand" | "product_line" | "batch";
-      target_id: string;
-      unsubscribe_token?: string;
-      is_active?: boolean;
-      created_at?: string;
-      updated_at?: string;
-    };
-    Update: {
-      id?: string;
-      email?: string;
-      user_id?: string | null;
-      target_type?: "brand" | "product_line" | "batch";
-      target_id?: string;
-      unsubscribe_token?: string;
-      is_active?: boolean;
       created_at?: string;
       updated_at?: string;
     };
