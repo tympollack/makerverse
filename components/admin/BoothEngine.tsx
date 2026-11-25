@@ -97,6 +97,12 @@ export function BoothEngine({
   const [guestSearch, setGuestSearch] = useState("");
   const [isSimulatingFeed, setIsSimulatingFeed] = useState(false);
   const [broadcastNotice, setBroadcastNotice] = useState<string | null>(null);
+  const [nowMs, setNowMs] = useState<number>(() => Date.now());
+
+  useEffect(() => {
+    const timer = setInterval(() => setNowMs(Date.now()), 60_000);
+    return () => clearInterval(timer);
+  }, []);
 
   // Raffle Mode State
   const [winProbability, setWinProbability] = useState<number>(25); // 25% default (1 in 4)
@@ -400,10 +406,10 @@ export function BoothEngine({
                 Total Check-Ins Today
               </span>
               <MonoValue glow="cyan" className="text-2xl font-bold">
-                {guestbookEntries.length + 42}
+                {guestbookEntries.length}
               </MonoValue>
               <span className="text-[10px] font-mono text-emerald-400 flex items-center gap-1">
-                <Flame className="w-3 h-3" /> +8 in the last hour
+                <Flame className="w-3 h-3" /> +{guestbookEntries.filter((g) => nowMs - g.timestamp <= 3_600_000).length} in the last hour
               </span>
             </FrostedCard>
 
@@ -412,7 +418,7 @@ export function BoothEngine({
                 Verified Cozy Members
               </span>
               <MonoValue glow="white" className="text-2xl font-bold">
-                {Math.round((guestbookEntries.filter((g) => g.verifiedTier !== "GUEST").length / guestbookEntries.length) * 100)}%
+                {guestbookEntries.length > 0 ? Math.round((guestbookEntries.filter((g) => g.verifiedTier !== "GUEST").length / guestbookEntries.length) * 100) : 0}%
               </MonoValue>
               <span className="text-[10px] font-mono text-cyan-300">
                 Cozy Profile Anchored
@@ -424,7 +430,7 @@ export function BoothEngine({
                 NFC Tap Rate
               </span>
               <MonoValue glow="orange" className="text-2xl font-bold">
-                84.2%
+                {guestbookEntries.length > 0 ? ((guestbookEntries.filter((g) => g.tapType === "NTAG424_TAP" || g.tapType === "NTAG215_TAP").length / guestbookEntries.length) * 100).toFixed(1) : "0.0"}%
               </MonoValue>
               <span className="text-[10px] font-mono text-white/30">
                 NTAG424 + NTAG215 Induction

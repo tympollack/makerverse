@@ -81,7 +81,10 @@ export function RouteProgressBar() {
     if (prevRouteKeyRef.current !== normalizedCurrent) {
       prevRouteKeyRef.current = normalizedCurrent;
       if (visible) {
-        complete();
+        const timer = setTimeout(() => {
+          complete();
+        }, 0);
+        return () => clearTimeout(timer);
       }
     }
   }, [pathname, searchKey, visible, complete]);

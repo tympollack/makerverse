@@ -1,7 +1,7 @@
 // components/onboarding/LiveDropsShowcase.tsx
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { Flame, CalendarClock, ArrowRight, Sparkles } from "lucide-react";
 import { FrostedCard } from "@/components/ui/FrostedCard";
@@ -34,21 +34,56 @@ function getInitialDrops(): { live: ProductBatch[]; upcoming: ProductBatch[] } {
   };
 }
 
-function getDropHref(batch: ProductBatch): string {
-  if (batch.brandHandle === "get-bent") {
-    return batch.batchNumber === 1 ? "/get-bent" : `/get-bent?batch=${encodeURIComponent(batch.sku || batch.id)}`;
+export function getDropHref(batch: ProductBatch, kind: "LIVE" | "UPCOMING"): string {
+  const ref = encodeURIComponent(batch.sku || batch.id);
+  if (kind === "LIVE") {
+    return `/${batch.brandHandle}?batch=${ref}`;
   }
-  return `/${batch.brandHandle}?batch=${encodeURIComponent(batch.sku || batch.id)}`;
+  return `/${batch.brandHandle}?teaser=${ref}#upcoming-drops`;
 }
 
-export function LiveDropsShowcase() {
+export function LiveDropsShowcase({
+  initialLiveBatches,
+  initialUpcomingBatches,
+}: {
+  initialLiveBatches?: ProductBatch[];
+  initialUpcomingBatches?: ProductBatch[];
+} = {}) {
   const initial = getInitialDrops();
-  const [liveBatches, setLiveBatches] = useState<ProductBatch[]>(initial.live);
-  const [upcomingBatches, setUpcomingBatches] = useState<ProductBatch[]>(initial.upcoming);
+  const [liveBatches, setLiveBatches] = useState<ProductBatch[]>(
+    initialLiveBatches ?? initial.live,
+  );
+  const [upcomingBatches, setUpcomingBatches] = useState<ProductBatch[]>(
+    initialUpcomingBatches ?? initial.upcoming,
+  );
+
+  const refreshDrops = useCallback(async () => {
+    if (typeof fetch !== "function") return;
+    try {
+      const [liveData, teaserData] = await Promise.all([
+        fetch("/api/drops?mode=live")
+          .then((r) => (r.ok ? r.json() : null))
+          .catch(() => null),
+        fetch("/api/drops?mode=teasers")
+          .then((r) => (r.ok ? r.json() : null))
+          .catch(() => null),
+      ]);
+
+      if (liveData && Array.isArray(liveData.batches)) {
+        setLiveBatches(liveData.batches);
+      }
+      if (teaserData && Array.isArray(teaserData.teasers)) {
+        setUpcomingBatches(teaserData.teasers);
+      }
+    } catch {
+      // Retain existing state if offline
+    }
+  }, []);
 
   useEffect(() => {
-    if (typeof fetch !== "function") return;
+    if (initialLiveBatches || initialUpcomingBatches) return;
     let active = true;
+    if (typeof fetch !== "function") return;
 
     Promise.all([
       fetch("/api/drops?mode=live")
@@ -70,7 +105,34 @@ export function LiveDropsShowcase() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [initialLiveBatches, initialUpcomingBatches]);
+
+  const handleCountdownExpire = useCallback(() => {
+    const now = Date.now();
+    setLiveBatches((prevLive) => {
+      const stillLive = prevLive.filter(
+        (b) => resolveBatchLifecycleStatus(b, now) === "LIVE",
+      );
+      setUpcomingBatches((prevUpcoming) => {
+        const promoted: ProductBatch[] = [];
+        const stillUpcoming: ProductBatch[] = [];
+        for (const b of prevUpcoming) {
+          const st = resolveBatchLifecycleStatus(b, now);
+          if (st === "LIVE") promoted.push(b);
+          else if (st === "SCHEDULED") stillUpcoming.push(b);
+        }
+        if (promoted.length > 0) {
+          setLiveBatches((curr) => {
+            const seen = new Set(curr.map((c) => c.id));
+            return [...curr, ...promoted.filter((p) => !seen.has(p.id))];
+          });
+        }
+        return stillUpcoming;
+      });
+      return stillLive;
+    });
+    void refreshDrops();
+  }, [refreshDrops]);
 
   const combined = [
     ...liveBatches.map((b) => ({ batch: b, kind: "LIVE" as const })),
@@ -187,6 +249,7 @@ export function LiveDropsShowcase() {
                         <CountdownTimer
                           expiresAt={targetTimestamp}
                           format="drop"
+                          onExpire={handleCountdownExpire}
                           className="text-xs font-bold text-[#22D3EE]"
                         />
                       </span>
@@ -196,7 +259,7 @@ export function LiveDropsShowcase() {
                   </div>
 
                   <Link
-                    href={getDropHref(batch)}
+                    href={getDropHref(batch, kind)}
                     className={
                       isLive
                         ? "w-full py-2.5 px-4 rounded-xl bg-[#CC5500] hover:bg-[#e0621a] text-white font-mono text-xs font-bold flex items-center justify-center gap-1.5 transition-colors"

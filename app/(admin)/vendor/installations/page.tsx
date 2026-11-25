@@ -1,27 +1,12 @@
 // app/(admin)/vendor/installations/page.tsx
-import { BoothEngine } from "@/components/admin/BoothEngine";
-import {
-  getAdminGuestbook,
-  getAdminInstallations,
-  getAdminRaffles,
-} from "@/lib/db/admin";
+import { AuthenticatedBoothEngine } from "@/components/admin/AuthenticatedVendorViews";
 
 export const dynamic = "force-dynamic";
 
-export default async function InstallationsPage() {
-  const [installations, guestbook, raffles] = await Promise.all([
-    getAdminInstallations(),
-    getAdminGuestbook(),
-    getAdminRaffles(),
-  ]);
-
+export default function InstallationsPage() {
   return (
     <div className="space-y-6">
-      <BoothEngine
-        initialInstallations={installations}
-        initialGuestbook={guestbook}
-        initialRaffles={raffles}
-      />
+      <AuthenticatedBoothEngine />
     </div>
   );
 }

@@ -1,6 +1,7 @@
 // components/__tests__/RouteLoaderAndSkeletons.test.tsx
-import React from "react";
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import React, { Suspense } from "react";
+import Link from "next/link";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, act } from "@testing-library/react";
 
 const mockUsePathname = vi.fn(() => "/");
@@ -30,9 +31,9 @@ describe("TASK-MKR-GLOBAL-ROUTE-LOADER: RouteProgressBar & Admin Route Skeletons
     const { rerender } = render(
       <div>
         <RouteProgressBar />
-        <a href="/vendor/schedule" onClick={(e) => e.preventDefault()}>
+        <Link href="/vendor/schedule" onClick={(e) => e.preventDefault()}>
           Schedule
-        </a>
+        </Link>
         <a href="https://example.com" target="_blank" rel="noreferrer">
           External
         </a>
@@ -60,10 +61,13 @@ describe("TASK-MKR-GLOBAL-ROUTE-LOADER: RouteProgressBar & Admin Route Skeletons
     rerender(
       <div>
         <RouteProgressBar />
-        <a href="/vendor/schedule">Schedule</a>
+        <Link href="/vendor/schedule">Schedule</Link>
       </div>,
     );
 
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    });
     expect(screen.getByRole("progressbar").getAttribute("aria-valuenow")).toBe("100");
 
     await act(async () => {
@@ -89,5 +93,62 @@ describe("TASK-MKR-GLOBAL-ROUTE-LOADER: RouteProgressBar & Admin Route Skeletons
       expect(status).toHaveAttribute("aria-busy", "true");
       unmount();
     }
+  });
+
+  it("keeps progress bar active while a Suspense route skeleton is visible and completes upon route resolution", async () => {
+    let resolveRoute!: (val: { default: React.ComponentType }) => void;
+    const LazySchedule = React.lazy(
+      () =>
+        new Promise<{ default: React.ComponentType }>((resolve) => {
+          resolveRoute = resolve;
+        }),
+    );
+
+    const AppShell = ({ route }: { route: string }) => (
+      <div>
+        <RouteProgressBar />
+        <Link href="/vendor/schedule" onClick={(e) => e.preventDefault()}>
+          Go Schedule
+        </Link>
+        {route === "/vendor/schedule" ? (
+          <Suspense fallback={<VendorScheduleLoading />}>
+            <LazySchedule />
+          </Suspense>
+        ) : (
+          <div>Home View</div>
+        )}
+      </div>
+    );
+
+    const { rerender } = render(<AppShell route="/" />);
+    expect(screen.getByText("Home View")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByText("Go Schedule"));
+    expect(screen.getByRole("progressbar")).toBeInTheDocument();
+
+    rerender(<AppShell route="/vendor/schedule" />);
+    expect(
+      screen.getByRole("status", { name: /Loading Drop Schedule/i }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("progressbar")).toBeInTheDocument();
+
+    await act(async () => {
+      resolveRoute({ default: () => <div>Schedule Loaded</div> });
+      await Promise.resolve();
+    });
+
+    mockUsePathname.mockReturnValue("/vendor/schedule");
+    rerender(<AppShell route="/vendor/schedule" />);
+
+    expect(screen.getByText("Schedule Loaded")).toBeInTheDocument();
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    });
+    expect(screen.getByRole("progressbar").getAttribute("aria-valuenow")).toBe("100");
+
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 300));
+    });
+    expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
   });
 });

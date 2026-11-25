@@ -1,7 +1,7 @@
 // components/shop/UpcomingDropCard.tsx
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Lock, Sparkles, Clock, CheckCircle2, Mail, ArrowRight, BellRing, Check } from "lucide-react";
 import { FrostedCard } from "@/components/ui/FrostedCard";
@@ -16,9 +16,17 @@ import { formatCents } from "@/lib/utils";
 interface UpcomingDropCardProps {
   batch: ProductBatch;
   onUnlock?: (batchId: string) => void;
+  highlighted?: boolean;
 }
 
-export function UpcomingDropCard({ batch, onUnlock }: UpcomingDropCardProps) {
+export function UpcomingDropCard({ batch, onUnlock, highlighted = false }: UpcomingDropCardProps) {
+  const cardRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (highlighted && typeof cardRef.current?.scrollIntoView === "function") {
+      cardRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  }, [highlighted]);
   const goesLiveMs = Date.parse(batch.goesLiveAt);
   const [isUnlocked, setIsUnlocked] = useState<boolean>(() =>
     isBatchCheckoutUnlocked(batch),
@@ -119,10 +127,16 @@ export function UpcomingDropCard({ batch, onUnlock }: UpcomingDropCardProps) {
   };
 
   return (
-    <FrostedCard
-      glowOnHover
-      className="p-5 flex flex-col justify-between gap-4 border border-white/10 hover:border-[#22D3EE]/40 transition-all"
+    <div
+      ref={cardRef}
+      id={`upcoming-drop-${batch.sku || batch.id}`}
+      data-highlighted={highlighted ? "true" : undefined}
+      className={highlighted ? "rounded-xl ring-2 ring-[#22D3EE] shadow-[0_0_24px_rgba(34,211,238,0.25)]" : undefined}
     >
+      <FrostedCard
+        glowOnHover
+        className="p-5 flex flex-col justify-between gap-4 border border-white/10 hover:border-[#22D3EE]/40 transition-all"
+      >
       <div className="space-y-3">
         {/* Top Row: Version Badge + Status */}
         <div className="flex items-center justify-between gap-2 flex-wrap">
@@ -272,5 +286,6 @@ export function UpcomingDropCard({ batch, onUnlock }: UpcomingDropCardProps) {
         )}
       </div>
     </FrostedCard>
+    </div>
   );
 }

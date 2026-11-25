@@ -63,11 +63,15 @@ export async function getProducts(brandHandle?: string): Promise<Product[]> {
         return data.map((p: any) => {
           const rawSpec = p.hardware_spec || {};
           const spec = typeof rawSpec === "object" ? rawSpec : {};
+          const joinedBrands = p.product_lines?.brands;
+          const brandSlug = Array.isArray(joinedBrands)
+            ? joinedBrands[0]?.slug
+            : joinedBrands?.slug;
 
           return {
             id: p.id,
             sku: p.sku,
-            brandHandle: normalized,
+            brandHandle: brandSlug || normalized,
             productLineId: p.product_line_id || p.product_lines?.id || undefined,
             title: p.title,
             description: p.description || "",

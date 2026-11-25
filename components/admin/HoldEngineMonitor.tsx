@@ -20,11 +20,7 @@ export interface StreamEventItem {
   id: string;
   time: string;
   timestamp: number;
-  event_type:
-    | "commerce.hold_created"
-    | "commerce.payment_failed"
-    | "commerce.reservation_released"
-    | "commerce.fulfilled";
+  event_type: "commerce.hold_created" | "commerce.payment_failed" | "commerce.reservation_released" | "commerce.fulfilled";
   hold_id: string;
   product_id: string;
   sku: string;
@@ -151,15 +147,7 @@ const EVENT_CONFIG: Record<
 
 // ─── Summary Metrics Bar ───────────────────────────────────────────────────────
 
-function HoldSummaryBar({
-  holds,
-  filter,
-  setFilter,
-}: {
-  holds: HoldEntry[];
-  filter: HoldState | "ALL";
-  setFilter: (s: HoldState | "ALL") => void;
-}) {
+function HoldSummaryBar({ holds, filter, setFilter }: { holds: HoldEntry[]; filter: HoldState | "ALL"; setFilter: (s: HoldState | "ALL") => void }) {
   const counts = {
     ACTIVE_HOLD: holds.filter((h) => h.state === "ACTIVE_HOLD").length,
     PAYMENT_RETRYING: holds.filter((h) => h.state === "PAYMENT_RETRYING").length,
@@ -310,12 +298,14 @@ function PayloadModal({ hold, onClose }: { hold: HoldEntry | null; onClose: () =
 
 function HoldRow({
   hold,
+  liveMode = false,
   onExtendTTL,
   onRelease,
   onFulfill,
   onInspect,
 }: {
   hold: HoldEntry;
+  liveMode?: boolean;
   onExtendTTL: (holdId: string) => void;
   onRelease: (holdId: string) => void;
   onFulfill: (holdId: string) => void;
@@ -425,7 +415,7 @@ function HoldRow({
               Payload
             </button>
 
-            {hold.state !== "EXPIRED_RELEASE" && (
+            {!liveMode && hold.state !== "EXPIRED_RELEASE" && (
               <>
                 <button
                   onClick={() => onExtendTTL(hold.holdId)}
@@ -647,9 +637,13 @@ function EventStreamLog({
 export function HoldEngineMonitor({
   initialHolds = ACTIVE_HOLDS,
   initialEvents = INITIAL_EVENTS,
+  liveMode = false,
+  onSync,
 }: {
   initialHolds?: HoldEntry[];
   initialEvents?: StreamEventItem[];
+  liveMode?: boolean;
+  onSync?: () => Promise<HoldEntry[] | void>;
 } = {}) {
   const [holds, setHolds] = useState<HoldEntry[]>(initialHolds);
   const [events, setEvents] = useState<StreamEventItem[]>(initialEvents);
@@ -881,8 +875,15 @@ export function HoldEngineMonitor({
     setEvents((evts) => [newEvt, ...evts]);
   };
 
-  const handleRefresh = () => {
+  const handleRefresh = async () => {
     setLastSync(new Date());
+    if (liveMode && onSync) {
+      const fresh = await onSync();
+      if (Array.isArray(fresh)) {
+        setHolds(fresh);
+      }
+      return;
+    }
     setHolds([...initialHolds]);
   };
 
@@ -906,13 +907,19 @@ export function HoldEngineMonitor({
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
-          <button
-            onClick={handleSimulateNewHold}
-            className="btn-cta flex items-center gap-1.5 text-xs py-2 px-3 shadow-[0_0_16px_rgba(204,85,0,0.3)]"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            Simulate Inbound Hold
-          </button>
+          {liveMode ? (
+            <span className="px-2.5 py-1.5 rounded-lg border border-cyan-500/30 bg-cyan-500/10 font-mono text-[11px] text-cyan-300">
+              Live Monitor · Read-Only
+            </span>
+          ) : (
+            <button
+              onClick={handleSimulateNewHold}
+              className="btn-cta flex items-center gap-1.5 text-xs py-2 px-3 shadow-[0_0_16px_rgba(204,85,0,0.3)]"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              Simulate Inbound Hold
+            </button>
+          )}
 
           <button
             onClick={handleRefresh}
@@ -1002,6 +1009,7 @@ export function HoldEngineMonitor({
                 <HoldRow
                   key={hold.holdId}
                   hold={hold}
+                  liveMode={liveMode}
                   onExtendTTL={handleExtendTTL}
                   onRelease={handleRelease}
                   onFulfill={handleFulfill}

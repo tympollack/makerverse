@@ -30,6 +30,11 @@ export function UpcomingDropsRail({
   initialTeasers?: ProductBatch[];
 }) {
   const normalized = brandHandle.toLowerCase().replace(/^@/, "");
+  const [selectedTeaser] = useState<string | null>(() => {
+    if (typeof window === "undefined") return null;
+    const param = new URLSearchParams(window.location.search).get("teaser");
+    return param ? param.trim().toUpperCase() : null;
+  });
   const [remoteResult, setRemoteResult] = useState<{
     brand: string;
     teasers: ProductBatch[];
@@ -61,7 +66,7 @@ export function UpcomingDropsRail({
   }
 
   return (
-    <section aria-label="Upcoming Drops Queued" className="space-y-4">
+    <section id="upcoming-drops" aria-label="Upcoming Drops Queued" className="scroll-mt-24 space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-white/10">
         <div className="flex items-center gap-2.5">
           <div className="w-7 h-7 rounded-lg bg-[#22D3EE]/15 border border-[#22D3EE]/35 flex items-center justify-center text-[#22D3EE]">
@@ -80,9 +85,20 @@ export function UpcomingDropsRail({
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {teasers.map((batch) => (
-          <UpcomingDropCard key={batch.id} batch={batch} />
-        ))}
+        {teasers.map((batch) => {
+          const isHighlighted = Boolean(
+            selectedTeaser &&
+              (batch.id.toUpperCase() === selectedTeaser ||
+                batch.sku.toUpperCase() === selectedTeaser),
+          );
+          return (
+            <UpcomingDropCard
+              key={batch.id}
+              batch={batch}
+              highlighted={isHighlighted}
+            />
+          );
+        })}
       </div>
     </section>
   );
