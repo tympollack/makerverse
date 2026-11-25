@@ -1,7 +1,7 @@
 // app/(admin)/vendor/layout.tsx
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
@@ -14,11 +14,12 @@ import {
   ChevronLeft,
   ChevronRight,
   LayoutDashboard,
-  ShieldCheck,
+  Store,
+  ExternalLink,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { EcosystemTelemetryBar } from "@/components/admin/EcosystemTelemetryBar";
-import { VersionReleaseBadge } from "@/components/admin/VersionReleaseBadge";
+import { getSupabaseBrowserClient } from "@/lib/supabase/client";
+import { getVendorAuthorizedBrands } from "@/app/(admin)/vendor/schedule/actions";
 
 // ─── Nav Items ────────────────────────────────────────────────────────────────
 
@@ -65,7 +66,38 @@ const NAV_ITEMS = [
 
 export default function VendorLayout({ children }: { children: React.ReactNode }) {
   const [collapsed, setCollapsed] = useState(false);
-  const pathname = usePathname();
+  const [activeBrand, setActiveBrand] = useState<{ name: string; handle: string } | null>(null);
+  const pathname = usePathname() ?? "/vendor";
+  const currentNav =
+    NAV_ITEMS.find((item) =>
+      item.exact ? pathname === item.href : pathname.startsWith(item.href) && item.href !== "/vendor",
+    ) ?? NAV_ITEMS[0];
+
+  useEffect(() => {
+    const sb = getSupabaseBrowserClient();
+    if (!sb) return;
+    let active = true;
+    async function loadActiveStudio() {
+      try {
+        const { data } = await sb!.auth.getSession();
+        const token = data?.session?.access_token;
+        if (!token || !active) return;
+        const result = await getVendorAuthorizedBrands({ authToken: token });
+        if (active && result.authorized && result.brands.length > 0) {
+          setActiveBrand({
+            name: result.brands[0].name,
+            handle: result.brands[0].handle,
+          });
+        }
+      } catch {
+        // Leave unlinked studio state
+      }
+    }
+    void loadActiveStudio();
+    return () => {
+      active = false;
+    };
+  }, []);
 
   return (
     <div className="flex min-h-screen bg-[#1A1A1A] text-[#F9F9F9]">
@@ -90,12 +122,9 @@ export default function VendorLayout({ children }: { children: React.ReactNode }
                   transition={{ duration: 0.15 }}
                   className="flex flex-col truncate"
                 >
-                  <div className="flex items-center gap-1.5">
-                    <span className="font-mono text-xs font-bold text-orange-200 tracking-wider">
-                      MAKERVERSE
-                    </span>
-                    <VersionReleaseBadge variant="badge" />
-                  </div>
+                  <span className="font-mono text-xs font-bold text-orange-200 tracking-wider">
+                    MAKERVERSE
+                  </span>
                   <span className="font-mono text-[9px] text-white/35 uppercase tracking-widest">
                     Vendor Admin
                   </span>
@@ -153,21 +182,21 @@ export default function VendorLayout({ children }: { children: React.ReactNode }
           })}
         </nav>
 
-        {/* Studio Provenance Seal */}
+        {/* Active Merchant Studio Card */}
         {!collapsed && (
-          <div className="px-3 pb-3 space-y-2">
+          <div className="px-3 pb-3">
             <div className="p-2.5 rounded-lg bg-white/3 border border-white/6 flex items-center gap-2.5">
               <div className="w-6 h-6 rounded-md bg-[#CC5500]/15 border border-[#CC5500]/30 flex items-center justify-center flex-shrink-0">
-                <ShieldCheck className="w-3.5 h-3.5 text-[#CC5500]" />
+                <Store className="w-3.5 h-3.5 text-[#CC5500]" />
               </div>
               <div className="min-w-0 flex-1">
-                <p className="text-[10px] font-semibold text-white/80 truncate">The Forge Collective</p>
-                <p className="text-[9px] font-mono text-white/30 truncate">0x4f3E...9aB2 · Verified</p>
+                <p className="text-[10px] font-semibold text-white/80 truncate">
+                  {activeBrand ? activeBrand.name : "Merchant Studio"}
+                </p>
+                <p className="text-[9px] font-mono text-white/35 truncate">
+                  {activeBrand ? `@${activeBrand.handle}` : "No studio connected"}
+                </p>
               </div>
-            </div>
-            <div className="px-2 py-1 rounded bg-black/30 border border-white/5 flex items-center justify-between">
-              <span className="font-mono text-[9px] text-white/35">makerverse_sdk</span>
-              <VersionReleaseBadge variant="subtle" />
             </div>
           </div>
         )}
@@ -191,8 +220,36 @@ export default function VendorLayout({ children }: { children: React.ReactNode }
 
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col min-w-0">
-        {/* Ecosystem Telemetry Bar (Live Horizontal Bar) */}
-        <EcosystemTelemetryBar />
+        {/* Clean Merchant Header Bar */}
+        <header className="w-full bg-[#121212]/95 backdrop-blur-md border-b border-white/8 px-4 sm:px-6 py-3 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <currentNav.icon className="w-4 h-4 text-[#CC5500] flex-shrink-0" />
+            <span className="text-xs font-semibold text-white/90 truncate">
+              {currentNav.label}
+            </span>
+            {activeBrand && (
+              <span className="hidden sm:inline-flex items-center px-2 py-0.5 rounded-full bg-white/5 border border-white/10 font-mono text-[10px] text-white/60">
+                @{activeBrand.handle}
+              </span>
+            )}
+          </div>
+
+          <div className="flex items-center gap-2.5 flex-shrink-0">
+            <Link
+              href={activeBrand ? `/${activeBrand.handle}` : "/get-bent"}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 font-mono text-[11px] text-white/75 transition-colors"
+            >
+              <span>View Storefront</span>
+              <ExternalLink className="w-3 h-3 text-[#22D3EE]" />
+            </Link>
+            <Link
+              href="/"
+              className="inline-flex items-center px-2.5 py-1 rounded-lg bg-transparent hover:bg-white/5 border border-white/8 font-mono text-[11px] text-white/50 hover:text-white/80 transition-colors"
+            >
+              Home
+            </Link>
+          </div>
+        </header>
 
         {/* Page Content Viewport */}
         <main className="flex-1 overflow-auto p-4 sm:p-6 lg:p-8">

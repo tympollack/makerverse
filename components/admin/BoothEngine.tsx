@@ -8,7 +8,6 @@ import {
 } from "lucide-react";
 import { FrostedCard } from "@/components/ui/FrostedCard";
 import { MonoValue, ChipUID } from "@/components/ui/MonoValue";
-import { VersionReleaseBadge } from "@/components/admin/VersionReleaseBadge";
 import {
   MOCK_INSTALLATIONS,
   INITIAL_GUESTBOOK_ENTRIES,
@@ -78,22 +77,36 @@ const DEFAULT_STATION: BoothInstallation = {
   id: "inst_default", name: "Unconfigured Booth Station", type: "Interactive Shoppable Booth Engine", chipCount: 0, status: "OFFLINE", lastPing: "never", location: "Pending Deployment", triggerCount: 0, hardwareUid: "NXP-UNASSIGNED", stationIp: "0.0.0.0", readerModel: "NXP PN532 / NTAG424 Reader",
 };
 
-export function BoothEngine() {
+export function BoothEngine({
+  initialInstallations = MOCK_INSTALLATIONS,
+  initialGuestbook = INITIAL_GUESTBOOK_ENTRIES,
+  initialRaffles = INITIAL_RAFFLE_ATTEMPTS,
+}: {
+  initialInstallations?: BoothInstallation[];
+  initialGuestbook?: GuestbookEntry[];
+  initialRaffles?: RaffleAttempt[];
+} = {}) {
   // Selected Installation & Active Tab
-  const [installations] = useState<BoothInstallation[]>(MOCK_INSTALLATIONS);
-  const [selectedStationId, setSelectedStationId] = useState<string>(MOCK_INSTALLATIONS[0]?.id ?? DEFAULT_STATION.id);
+  const [installations] = useState<BoothInstallation[]>(initialInstallations);
+  const [selectedStationId, setSelectedStationId] = useState<string>(initialInstallations[0]?.id ?? DEFAULT_STATION.id);
   const [mode, setMode] = useState<BoothEngineMode>("GUESTBOOK");
 
   // Guestbook Mode State
-  const [guestbookEntries, setGuestbookEntries] = useState<GuestbookEntry[]>(INITIAL_GUESTBOOK_ENTRIES);
+  const [guestbookEntries, setGuestbookEntries] = useState<GuestbookEntry[]>(initialGuestbook);
   const [guestFilter, setGuestFilter] = useState<"ALL" | "MEMBERS" | "COMMENTS" | "VIPS">("ALL");
   const [guestSearch, setGuestSearch] = useState("");
   const [isSimulatingFeed, setIsSimulatingFeed] = useState(false);
   const [broadcastNotice, setBroadcastNotice] = useState<string | null>(null);
+  const [nowMs, setNowMs] = useState<number>(() => Date.now());
+
+  useEffect(() => {
+    const timer = setInterval(() => setNowMs(Date.now()), 60_000);
+    return () => clearInterval(timer);
+  }, []);
 
   // Raffle Mode State
   const [winProbability, setWinProbability] = useState<number>(25); // 25% default (1 in 4)
-  const [raffleAttempts, setRaffleAttempts] = useState<RaffleAttempt[]>(INITIAL_RAFFLE_ATTEMPTS);
+  const [raffleAttempts, setRaffleAttempts] = useState<RaffleAttempt[]>(initialRaffles);
   const [activeAttendeeHandle, setActiveAttendeeHandle] = useState("@solstice_made");
   const [rubProgress, setRubProgress] = useState(0);
   const [isRubbing, setIsRubbing] = useState(false);
@@ -280,7 +293,6 @@ export function BoothEngine() {
               <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 font-semibold uppercase tracking-wider">
                 ● Live Engine
               </span>
-              <VersionReleaseBadge variant="pill" />
             </div>
             <p className="text-xs font-mono text-white/40 mt-0.5 truncate">
               {activeStation.name} · {activeStation.location} · {activeStation.hardwareUid}
@@ -304,9 +316,9 @@ export function BoothEngine() {
             </select>
           </div>
 
-          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/4 border border-white/8 font-mono text-[11px] text-cyan-300 flex-shrink-0">
+          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/4 border border-white/8 font-mono text-[11px] text-white/75 flex-shrink-0">
             <Wifi className="w-3.5 h-3.5 text-emerald-400" />
-            <span>12ms</span>
+            <span>{activeStation.status}</span>
           </div>
         </div>
       </div>
@@ -394,10 +406,10 @@ export function BoothEngine() {
                 Total Check-Ins Today
               </span>
               <MonoValue glow="cyan" className="text-2xl font-bold">
-                {guestbookEntries.length + 42}
+                {guestbookEntries.length}
               </MonoValue>
               <span className="text-[10px] font-mono text-emerald-400 flex items-center gap-1">
-                <Flame className="w-3 h-3" /> +8 in the last hour
+                <Flame className="w-3 h-3" /> +{guestbookEntries.filter((g) => nowMs - g.timestamp <= 3_600_000).length} in the last hour
               </span>
             </FrostedCard>
 
@@ -406,7 +418,7 @@ export function BoothEngine() {
                 Verified Cozy Members
               </span>
               <MonoValue glow="white" className="text-2xl font-bold">
-                {Math.round((guestbookEntries.filter((g) => g.verifiedTier !== "GUEST").length / guestbookEntries.length) * 100)}%
+                {guestbookEntries.length > 0 ? Math.round((guestbookEntries.filter((g) => g.verifiedTier !== "GUEST").length / guestbookEntries.length) * 100) : 0}%
               </MonoValue>
               <span className="text-[10px] font-mono text-cyan-300">
                 Cozy Profile Anchored
@@ -418,7 +430,7 @@ export function BoothEngine() {
                 NFC Tap Rate
               </span>
               <MonoValue glow="orange" className="text-2xl font-bold">
-                84.2%
+                {guestbookEntries.length > 0 ? ((guestbookEntries.filter((g) => g.tapType === "NTAG424_TAP" || g.tapType === "NTAG215_TAP").length / guestbookEntries.length) * 100).toFixed(1) : "0.0"}%
               </MonoValue>
               <span className="text-[10px] font-mono text-white/30">
                 NTAG424 + NTAG215 Induction
@@ -990,8 +1002,8 @@ export function BoothEngine() {
                   <span className="text-white/80">{activeStation.stationIp}</span>
                 </div>
                 <div className="py-2.5 flex justify-between">
-                  <span className="text-white/40">Telemetry Health:</span>
-                  <span className="text-emerald-400 font-bold">ONLINE · 12ms Latency</span>
+                  <span className="text-white/40">Station Status:</span>
+                  <span className="text-emerald-400 font-bold">{activeStation.status}</span>
                 </div>
               </div>
             </FrostedCard>

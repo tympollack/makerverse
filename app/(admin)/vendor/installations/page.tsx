@@ -1,12 +1,12 @@
 // app/(admin)/vendor/installations/page.tsx
-"use client";
+import { AuthenticatedBoothEngine } from "@/components/admin/AuthenticatedVendorViews";
 
-import { BoothEngine } from "@/components/admin/BoothEngine";
+export const dynamic = "force-dynamic";
 
 export default function InstallationsPage() {
   return (
     <div className="space-y-6">
-      <BoothEngine />
+      <AuthenticatedBoothEngine />
     </div>
   );
 }

@@ -153,6 +153,17 @@ export const BRAND_PASSPORT: BrandPassport = IS_MOCK_ENABLED
   ? MOCK_BRAND_PASSPORT
   : EMPTY_BRAND_PASSPORT;
 
+export function createEmptyBrandPassport(handle: string): BrandPassport {
+  return {
+    ...EMPTY_BRAND_PASSPORT,
+    handle,
+    name: handle ? `@${handle}` : "Maker Shop",
+    bio: "This storefront has no published physical batches yet.",
+    ledgerAddress: "",
+    studioLocation: "Makerverse Registry",
+  };
+}
+
 export const ALL_BRANDS: BrandPassport[] = IS_MOCK_ENABLED ? MOCK_ALL_BRANDS : [];
 
 // ─── Real Products ───────────────────────────────────────────────────────────

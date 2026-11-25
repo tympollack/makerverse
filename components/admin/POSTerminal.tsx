@@ -9,7 +9,6 @@ import {
 import { FrostedCard } from "@/components/ui/FrostedCard";
 import { MonoValue, PriceTag, ChipUID } from "@/components/ui/MonoValue";
 import { StatusBadge } from "@/components/ui/StatusBadge";
-import { VersionReleaseBadge } from "@/components/admin/VersionReleaseBadge";
 import { POS_TRANSACTIONS } from "@/lib/mock/adminData";
 import type { POSTransaction, POSMode } from "@/lib/mock/adminData";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
@@ -1200,7 +1199,6 @@ export function POSTerminal({
           <span className="font-mono text-[10px] px-2 py-0.5 rounded-full bg-orange-500/15 border border-orange-500/30 text-orange-300 font-semibold">
             Vendor Admin Suite
           </span>
-          <VersionReleaseBadge variant="pill" />
         </div>
         <p className="text-xs font-mono text-white/40 mt-1">
           High-Touch NFC Cryptographic Handshake ($100+) · Low-Touch Volume Batch Checkout

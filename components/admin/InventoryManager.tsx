@@ -22,7 +22,6 @@ import { ChipTierBadge } from "@/components/ui/StatusBadge";
 import { ProductRegistrationDrawer } from "@/components/admin/ProductRegistrationDrawer";
 import { SkuMatrixTable } from "@/components/admin/SkuMatrixTable";
 import { BatchSettlementModal } from "@/components/admin/BatchSettlementModal";
-import { VersionReleaseBadge } from "@/components/admin/VersionReleaseBadge";
 import { IS_MOCK_ENABLED, INVENTORY_ITEMS, NFC_BATCH_QUEUE } from "@/lib/mock/adminData";
 import type { InventoryItem, NfcChipEntry, ChipLockState } from "@/lib/mock/adminData";
 import type { BatchOrderRow } from "@/lib/utils/exportBatchManifest";
@@ -524,7 +523,6 @@ export function InventoryManager({
             <span className="text-[10px] font-mono px-2.5 py-0.5 rounded-full bg-[#CC5500]/15 text-orange-300 border border-[#CC5500]/30 font-semibold uppercase tracking-wider">
               Studio Admin
             </span>
-            <VersionReleaseBadge variant="pill" />
           </div>
           <p className="text-xs font-mono text-white/40 mt-1">
             Physical-to-digital inventory lifecycle · Dynamic SUN-CMAC encoding · EIP-2981 secondary royalty governance

@@ -26,13 +26,15 @@ export interface PilotApplicationResult {
   error?: string;
 }
 
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 export async function submitPilotApplication(
   input: PilotApplicationInput,
 ): Promise<PilotApplicationResult> {
   const artistBrandName = (input.artistBrandName || "").trim();
   const mediumCraft = input.mediumCraft || "Visual Art";
   const portfolioHandle = (input.portfolioHandle || "").trim();
-  const email = (input.email || "").trim();
+  const email = (input.email || "").trim().toLowerCase();
   const nextShowFestival = (input.nextShowFestival || "").trim() || null;
 
   if (!artistBrandName || !portfolioHandle || !email) {
@@ -41,6 +43,16 @@ export async function submitPilotApplication(
       persistedToDb: false,
       applicationId: "",
       message: "Please complete Artist / Brand Name, Portfolio Handle, and Email.",
+      error: "VALIDATION_ERROR",
+    };
+  }
+
+  if (!EMAIL_REGEX.test(email)) {
+    return {
+      success: false,
+      persistedToDb: false,
+      applicationId: "",
+      message: "Please enter a valid email address.",
       error: "VALIDATION_ERROR",
     };
   }

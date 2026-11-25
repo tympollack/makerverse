@@ -30,6 +30,7 @@ import {
   PRODUCTS,
   SHOPPABLE_POSTS,
   IS_MOCK_ENABLED,
+  createEmptyBrandPassport,
   getBrandByHandle,
   getProductsByBrandHandle,
   getPostsByBrandHandle,
@@ -39,7 +40,7 @@ import {
   type ShoppablePin,
   type ChipTier,
 } from "@/lib/mock/shopData";
-import { cn, formatCents, relativeTime } from "@/lib/utils";
+import { cn, formatCents, getBrandInitials, relativeTime } from "@/lib/utils";
 
 // ─── Brand Hero Header ────────────────────────────────────────────────────────
 
@@ -95,7 +96,7 @@ function BrandHero({
         {/* Avatar / Monogram with Verified Seal */}
         <div className="-mt-20 lg:-mt-24 relative flex-shrink-0">
           <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-2xl bg-gradient-to-br from-[#CC5500] via-stone-800 to-[#1A1A1A] border-2 border-white/20 shadow-2xl flex items-center justify-center text-3xl sm:text-4xl font-bold text-orange-100 font-mono select-none ring-4 ring-black/40">
-            FC
+            {getBrandInitials(brand.name)}
           </div>
           {brand.isVerified && (
             <div
@@ -728,14 +729,7 @@ export default function BrandShopPage({
   const defaultBrand = useMemo<BrandPassport>(() => {
     const found = getBrandByHandle(brandHandle);
     if (found) return found;
-    if (IS_MOCK_ENABLED) return BRAND_PASSPORT;
-    return {
-      ...BRAND_PASSPORT,
-      handle: brandHandle,
-      name: brandHandle ? `@${brandHandle}` : "Unclaimed Maker Shop",
-      bio: "This storefront has no published physical batches yet.",
-      studioLocation: "Makerverse Registry",
-    };
+    return IS_MOCK_ENABLED ? BRAND_PASSPORT : createEmptyBrandPassport(brandHandle);
   }, [brandHandle]);
 
   const defaultProducts = useMemo(() => {

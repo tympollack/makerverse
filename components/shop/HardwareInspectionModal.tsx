@@ -194,7 +194,9 @@ export function HardwareInspectionModal({
                 </div>
                 <div className="flex items-center justify-between text-xs font-mono text-white/60 pt-2 border-t border-white/8">
                   <span>On-Chain Ledger Anchor</span>
-                  <span className="text-cyan-300">{product.hardwareSpec.onChainContract}</span>
+                  <span className="text-cyan-300">
+                    {product.hardwareSpec.onChainContract || "Pending Ledger Anchor"}
+                  </span>
                 </div>
               </div>
             </div>

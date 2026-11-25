@@ -8,7 +8,6 @@ import {
   MapPin,
   ShieldCheck,
   CheckCircle2,
-  XCircle,
   Calculator,
   Sparkles,
   QrCode,
@@ -18,21 +17,21 @@ import {
 
 export function ArchitectureGridSection() {
   return (
-    <section className="space-y-8">
+    <section id="how-it-works" className="scroll-mt-24 space-y-8">
       <div className="max-w-3xl space-y-2">
         <span className="font-mono text-xs text-[#22D3EE] uppercase tracking-widest">
-          PHYGITAL INFRASTRUCTURE · ZERO CRYPTO FRICTION
+          HOW MAKERVERSE WORKS · ZERO WALLET FRICTION
         </span>
         <h2 className="text-2xl sm:text-3xl font-bold text-[#F9F9F9] tracking-tight">
-          Built for Real-World Booths, Drop Windows, and Collector Provenance
+          Built for Real Booths, Timed Drops, and Lasting Collector Proof
         </h2>
         <p className="text-sm text-white/65 leading-relaxed">
-          Match the right physical authentication tier to every price point, monetize collector hype without scalpers, and turn physical pieces into living social channels.
+          Match an authentication tag to every price point, run fair timed drops without scalpers, and turn physical work into a direct channel back to your studio.
         </p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Card 1: Tiered Hardware Validation */}
+        {/* Card 1: Tap-to-Verify Tags */}
         <div className="bg-white/5 backdrop-blur-md border border-white/10 shadow-2xl rounded-xl p-6 flex flex-col justify-between space-y-5 hover:border-[#22D3EE]/40 transition-colors">
           <div className="space-y-4">
             <div className="flex items-center justify-between">
@@ -40,15 +39,15 @@ export function ArchitectureGridSection() {
                 <Cpu className="w-5 h-5 text-[#22D3EE]" />
               </div>
               <span className="font-mono text-[10px] px-2.5 py-0.5 rounded-full bg-cyan-500/10 border border-cyan-500/25 text-[#22D3EE]">
-                ANTI-COUNTERFEIT HARDWARE
+                AUTHENTICATION
               </span>
             </div>
 
             <h3 className="text-lg font-bold text-[#F9F9F9]">
-              Tiered Hardware Validation
+              Tap-to-Verify Tags
             </h3>
             <p className="text-xs text-white/65 leading-relaxed">
-              Scale authentication costs precisely to your medium—from $5 vinyl sticker packs to $2,500 gallery originals:
+              Match authentication cost to your piece—from $5 sticker packs up to $2,500 gallery originals:
             </p>
 
             <div className="space-y-2.5 font-mono text-xs">
@@ -57,13 +56,13 @@ export function ArchitectureGridSection() {
                   <QrCode className="w-3.5 h-3.5 text-emerald-400" />
                   <span className="text-white/90">Serialized QR</span>
                 </div>
-                <span className="text-emerald-300 font-bold">&lt;$0.01 · Stickers / Prints</span>
+                <span className="text-emerald-300 font-bold">&lt;$0.01 · Prints / Stickers</span>
               </div>
 
               <div className="p-2.5 rounded-lg bg-black/40 border border-white/8 flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <Nfc className="w-3.5 h-3.5 text-[#22D3EE]" />
-                  <span className="text-white/90">NTAG213</span>
+                  <span className="text-white/90">Standard NFC</span>
                 </div>
                 <span className="text-[#22D3EE] font-bold">$0.13 · Apparel / Merch</span>
               </div>
@@ -71,19 +70,19 @@ export function ArchitectureGridSection() {
               <div className="p-2.5 rounded-lg bg-black/40 border border-white/8 flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <Lock className="w-3.5 h-3.5 text-orange-400" />
-                  <span className="text-white/90">NTAG424 DNA</span>
+                  <span className="text-white/90">Encrypted DNA</span>
                 </div>
-                <span className="text-orange-300 font-bold">$0.80 · AES-128 CMAC Fine Art</span>
+                <span className="text-orange-300 font-bold">$0.80 · Fine Art Originals</span>
               </div>
             </div>
           </div>
 
           <div className="pt-3 border-t border-white/10 font-mono text-[11px] text-white/45">
-            Ferrite-shielded options ready for copper, steel, brass & heavy wood.
+            Shielded tags available for copper, steel, brass, and wood.
           </div>
         </div>
 
-        {/* Card 2: Vanity Serials & Soft-Close Auctions */}
+        {/* Card 2: Numbered Drops & Fair Serials */}
         <div className="bg-white/5 backdrop-blur-md border border-white/10 shadow-2xl rounded-xl p-6 flex flex-col justify-between space-y-5 hover:border-[#CC5500]/50 transition-colors">
           <div className="space-y-4">
             <div className="flex items-center justify-between">
@@ -91,43 +90,43 @@ export function ArchitectureGridSection() {
                 <Flame className="w-5 h-5 text-[#CC5500]" />
               </div>
               <span className="font-mono text-[10px] px-2.5 py-0.5 rounded-full bg-[#CC5500]/15 border border-[#CC5500]/35 text-orange-300">
-                SEQUENTIAL HOPPER ENGINE
+                TIMED DROPS
               </span>
             </div>
 
             <h3 className="text-lg font-bold text-[#F9F9F9]">
-              Vanity Serials & Soft-Close Auctions
+              Timed Drops &amp; Custom Serials
             </h3>
             <p className="text-xs text-white/65 leading-relaxed">
-              Let superfans pay a flat <strong className="text-white font-mono">$5</strong> to lock vanity serials (<span className="font-mono text-[#22D3EE]">#007</span>, <span className="font-mono text-[#22D3EE]">#042</span>) or compete in live popcorn-bidding auctions (<span className="font-mono text-orange-300">+2m</span> anti-snipe extensions) while everyone else flows into the automatic sequential hopper.
+              Superfans can pay <strong className="text-white font-mono">+$5</strong> to claim favorite numbers (<span className="font-mono text-[#22D3EE]">#007</span>, <span className="font-mono text-[#22D3EE]">#042</span>) or bid on special editions, while standard buyers get the next sequential edition automatically.
             </p>
 
             <div className="rounded-xl bg-black/50 border border-white/10 p-3.5 space-y-2 font-mono text-xs">
               <div className="flex items-center justify-between">
-                <span className="text-white/50">SERIAL #007 / N</span>
-                <span className="text-[#22D3EE]">+$5.00 VANITY CLAIM</span>
+                <span className="text-white/50">Serial #007</span>
+                <span className="text-[#22D3EE]">+$5 Vanity Claim</span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-white/50">SERIAL #042 / N</span>
-                <span className="text-[#22D3EE]">+$5.00 VANITY CLAIM</span>
+                <span className="text-white/50">Serial #042</span>
+                <span className="text-[#22D3EE]">+$5 Vanity Claim</span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-white/50">SERIAL #069 / N</span>
-                <span className="text-orange-400 font-bold">SOFT-CLOSE (+2m ANTI-SNIPE)</span>
+                <span className="text-white/50">Edition #069</span>
+                <span className="text-orange-400 font-bold">Anti-Snipe Auction (+2m)</span>
               </div>
               <div className="flex items-center justify-between border-t border-white/10 pt-2">
-                <span className="text-white/50">RUNNER-UP BIDS</span>
-                <span className="text-emerald-400">AUTO-CONVERT TO BASE HOPPER</span>
+                <span className="text-white/50">Outbid Buyers</span>
+                <span className="text-emerald-400">Auto-Convert to Next Serial</span>
               </div>
             </div>
           </div>
 
           <div className="pt-3 border-t border-white/10 font-mono text-[11px] text-white/45">
-            Zero lost orders: every outbid collector still gets a sequential edition at base price.
+            No lost orders: outbid collectors still receive a numbered edition at list price.
           </div>
         </div>
 
-        {/* Card 3: Object-Centric Following & Cozy Pins */}
+        {/* Card 3: Direct Collector Updates */}
         <div className="bg-white/5 backdrop-blur-md border border-white/10 shadow-2xl rounded-xl p-6 flex flex-col justify-between space-y-5 hover:border-[#22D3EE]/40 transition-colors">
           <div className="space-y-4">
             <div className="flex items-center justify-between">
@@ -135,35 +134,35 @@ export function ArchitectureGridSection() {
                 <MapPin className="w-5 h-5 text-emerald-400" />
               </div>
               <span className="font-mono text-[10px] px-2.5 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/25 text-emerald-300">
-                SPATIAL COMMERCE
+                DIRECT REACH
               </span>
             </div>
 
             <h3 className="text-lg font-bold text-[#F9F9F9]">
-              Object-Centric Following & Cozy Pins
+              Direct Collector Updates &amp; Booth Pins
             </h3>
             <p className="text-xs text-white/65 leading-relaxed">
-              Buyers follow specific art lines and brands directly—not noisy social feeds—and tag real-world pieces via shoppable pins from festival booths, living rooms, and gallery walls.
+              Collectors follow your specific art lines directly—not algorithmic feeds—and scan tagged photos from booths or living rooms to shop.
             </p>
 
             <div className="rounded-xl bg-black/50 border border-white/10 p-3.5 space-y-2.5 font-mono text-xs">
               <div className="flex items-center justify-between">
-                <span className="text-white/50">DIRECT LINE ALERTS</span>
-                <span className="text-emerald-300">100% Reach · 0 Algorithm Tax</span>
+                <span className="text-white/50">Drop Alerts</span>
+                <span className="text-emerald-300">100% Reach · No Algorithm</span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-white/50">SPATIAL COZY PINS</span>
-                <span className="text-[#22D3EE]">Interactive Booth & Room Tags</span>
+                <span className="text-white/50">Shoppable Photos</span>
+                <span className="text-[#22D3EE]">Booth &amp; Gallery Pins</span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-white/50">RESTOCK SIGNALS</span>
-                <span className="text-orange-300">Verified Collector Demand Queue</span>
+                <span className="text-white/50">Restock Demand</span>
+                <span className="text-orange-300">Verified Collector Queue</span>
               </div>
             </div>
           </div>
 
           <div className="pt-3 border-t border-white/10 font-mono text-[11px] text-white/45">
-            Every physical tap connects collectors straight back to your next batch drop.
+            Every physical scan connects buyers directly to your next drop.
           </div>
         </div>
       </div>
@@ -183,29 +182,29 @@ export function CreatorEconomicsSection() {
   const etsyEquivalentFee = Number(((basePrice + surplusAmount) * 0.065 + 0.2).toFixed(2));
 
   return (
-    <section className="space-y-8">
+    <section id="pricing" className="scroll-mt-24 space-y-8">
       <div className="max-w-3xl space-y-2">
         <span className="font-mono text-xs text-orange-400 uppercase tracking-widest">
-          LOCKED FEE ARCHITECTURE · CREATOR-FIRST ECONOMICS
+          TRANSPARENT PRICING · CREATOR-FIRST ECONOMICS
         </span>
         <h2 className="text-2xl sm:text-3xl font-bold text-[#F9F9F9] tracking-tight">
-          Keep 98% of Base Sales + 80% of Auction & Vanity Surplus
+          Keep 98% of Base Sales + 80% of Auction &amp; Serial Upside
         </h2>
         <p className="text-sm text-white/65 leading-relaxed">
-          We never tax your livelihood with monthly subscriptions or listing fees. Base retail prices stay protected at a 2% flat platform fee ($0.05 minimum), and we only win when our auction & vanity engine generates extra upside above your list price.
+          No monthly subscriptions or listing fees. Base list prices stay at a 2% flat fee ($0.05 minimum), and we only earn more when auctions or vanity serials bring in extra upside above your list price.
         </p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Left 7 Cols: Locked Fee Comparison Card vs Etsy/Traditional Marketplaces */}
+        {/* Left 7 Cols: Fee Breakdown */}
         <div className="lg:col-span-7 bg-white/5 backdrop-blur-md border border-white/10 shadow-2xl rounded-xl p-6 space-y-6">
           <div className="flex items-center justify-between flex-wrap gap-2 border-b border-white/10 pb-4">
             <div>
               <h3 className="text-base font-bold text-[#F9F9F9]">
-                Makerverse vs. Etsy & Traditional Marketplaces
+                Makerverse vs. Traditional Marketplaces
               </h3>
               <p className="font-mono text-xs text-white/45 mt-0.5">
-                Transparent creator economics locked for Founding Cohort Wave 1
+                Locked creator rates for Founding Cohort Wave 1
               </p>
             </div>
             <span className="font-mono text-xs font-bold px-3 py-1 rounded-full bg-[#CC5500]/20 border border-[#CC5500]/45 text-orange-300">
@@ -214,17 +213,16 @@ export function CreatorEconomicsSection() {
           </div>
 
           <div className="space-y-4">
-            {/* Economic Pillar 1 */}
             <div className="p-4 rounded-xl bg-black/45 border border-white/10 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div className="space-y-1">
                 <div className="flex items-center gap-2">
                   <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" />
                   <span className="font-mono text-sm font-bold text-[#F9F9F9]">
-                    $0 / month Storefront & Drop Hosting
+                    $0 / month Storefront &amp; Drop Hosting
                   </span>
                 </div>
                 <p className="text-xs text-white/60 pl-6">
-                  Zero listing fees, zero monthly SaaS subscription, unlimited phygital batch drops.
+                  Zero listing fees, zero monthly subscription, unlimited batch drops.
                 </p>
               </div>
               <div className="font-mono text-xs text-right pl-6 sm:pl-0 flex-shrink-0">
@@ -233,7 +231,6 @@ export function CreatorEconomicsSection() {
               </div>
             </div>
 
-            {/* Economic Pillar 2 */}
             <div className="p-4 rounded-xl bg-black/45 border border-white/10 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div className="space-y-1">
                 <div className="flex items-center gap-2">
@@ -243,26 +240,25 @@ export function CreatorEconomicsSection() {
                   </span>
                 </div>
                 <p className="text-xs text-white/60 pl-6">
-                  On standard list-price sales—more than 3× lower than Etsy&apos;s 6.5% + $0.20 transaction take.
+                  On standard list-price sales—more than 3× lower than Etsy&apos;s 6.5% + $0.20 take.
                 </p>
               </div>
               <div className="font-mono text-xs text-right pl-6 sm:pl-0 flex-shrink-0">
                 <span className="text-[#22D3EE] font-bold block">2.0% ($0.05 min)</span>
-                <span className="text-red-400/70">Etsy: 6.5% + $0.20 + Offsite Ads</span>
+                <span className="text-red-400/70">Etsy: 6.5% + $0.20 + Ads</span>
               </div>
             </div>
 
-            {/* Economic Pillar 3 */}
             <div className="p-4 rounded-xl bg-[#CC5500]/10 border border-[#CC5500]/35 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div className="space-y-1">
                 <div className="flex items-center gap-2">
                   <Sparkles className="w-4 h-4 text-[#CC5500] flex-shrink-0" />
                   <span className="font-mono text-sm font-bold text-[#F9F9F9]">
-                    80 / 20 Auction & Vanity Surplus Split
+                    80 / 20 Auction &amp; Vanity Surplus Split
                   </span>
                 </div>
                 <p className="text-xs text-white/70 pl-6">
-                  Base retail price stays 100% protected; on any surplus above list price generated by vanity claims (+$5) or soft-close popcorn auctions, <strong className="text-white">80% goes directly to the creator</strong> and <strong className="text-orange-300">20% funds the platform</strong>.
+                  On extra upside above list price from custom serials (+$5) or auctions, <strong className="text-white">80% goes to you</strong> and <strong className="text-orange-300">20% funds Makerverse</strong>.
                 </p>
               </div>
               <div className="font-mono text-xs text-right pl-6 sm:pl-0 flex-shrink-0">
@@ -271,7 +267,6 @@ export function CreatorEconomicsSection() {
               </div>
             </div>
 
-            {/* Economic Pillar 4 */}
             <div className="p-4 rounded-xl bg-black/45 border border-white/10 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div className="space-y-1">
                 <div className="flex items-center gap-2">
@@ -281,7 +276,7 @@ export function CreatorEconomicsSection() {
                   </span>
                 </div>
                 <p className="text-xs text-white/60 pl-6">
-                  EIP-2981 provenance ledger routes creator royalties back to your studio wallet whenever collectors trade verified pieces later.
+                  Automatic creator royalties whenever collectors resell verified pieces later.
                 </p>
               </div>
               <div className="font-mono text-xs text-right pl-6 sm:pl-0 flex-shrink-0">
@@ -292,20 +287,19 @@ export function CreatorEconomicsSection() {
           </div>
         </div>
 
-        {/* Right 5 Cols: Interactive Monospaced Payout Calculator */}
+        {/* Right 5 Cols: Payout Simulator */}
         <div className="lg:col-span-5 bg-white/5 backdrop-blur-md border border-white/10 shadow-2xl rounded-xl p-6 flex flex-col justify-between space-y-5">
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Calculator className="w-4 h-4 text-[#22D3EE]" />
                 <h3 className="font-mono text-xs font-bold uppercase tracking-wider text-[#F9F9F9]">
-                  LIVE CREATOR PAYOUT SIMULATOR
+                  Creator Payout Calculator
                 </h3>
               </div>
               <span className="font-mono text-[10px] text-[#22D3EE]">2% BASE · 80/20 SURPLUS</span>
             </div>
 
-            {/* Sliders */}
             <div className="space-y-3 font-mono text-xs">
               <div className="p-3 rounded-xl bg-black/40 border border-white/10 space-y-1.5">
                 <div className="flex justify-between">
@@ -329,7 +323,7 @@ export function CreatorEconomicsSection() {
               <div className="p-3 rounded-xl bg-black/40 border border-white/10 space-y-1.5">
                 <div className="flex justify-between">
                   <label htmlFor="calc-surplus" className="text-white/60">
-                    VANITY (+$5) OR AUCTION SURPLUS
+                    SERIAL (+$5) OR AUCTION BONUS
                   </label>
                   <span className="text-[#22D3EE] font-bold">+${surplusAmount.toFixed(2)}</span>
                 </div>
@@ -346,10 +340,9 @@ export function CreatorEconomicsSection() {
               </div>
             </div>
 
-            {/* Telemetry Ledger Output */}
             <div className="rounded-xl bg-black/60 border border-white/10 p-4 space-y-2.5 font-mono text-xs">
               <div className="flex justify-between text-white/65">
-                <span>Base Retail Protected (98%):</span>
+                <span>Base Sale Kept (98%):</span>
                 <span className="text-[#F9F9F9] font-semibold">${creatorBaseKeep.toFixed(2)}</span>
               </div>
               <div className="flex justify-between text-white/45">
@@ -357,11 +350,11 @@ export function CreatorEconomicsSection() {
                 <span>${basePlatformFee.toFixed(2)}</span>
               </div>
               <div className="flex justify-between text-[#22D3EE]">
-                <span>Creator 80% Surplus Share:</span>
+                <span>Your 80% Bonus Share:</span>
                 <span className="font-bold">+${creatorSurplusKeep.toFixed(2)}</span>
               </div>
               <div className="flex justify-between text-white/45">
-                <span>Platform 20% Surplus Share:</span>
+                <span>Platform 20% Bonus Share:</span>
                 <span>${platformSurplusCut.toFixed(2)}</span>
               </div>
               <div className="pt-2.5 border-t border-white/15 flex items-center justify-between text-sm">
@@ -374,7 +367,7 @@ export function CreatorEconomicsSection() {
           </div>
 
           <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/25 font-mono text-[11px] text-emerald-300 flex items-center justify-between">
-            <span>On a ${basePrice.toFixed(2)} base item, Etsy charges ${etsyEquivalentFee.toFixed(2)}</span>
+            <span>On a ${(basePrice + surplusAmount).toFixed(2)} order, Etsy charges ${etsyEquivalentFee.toFixed(2)}</span>
             <span className="font-bold">Protected Upside</span>
           </div>
         </div>
