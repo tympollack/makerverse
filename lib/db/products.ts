@@ -20,7 +20,7 @@ function mapHardwareTier(tier: string): ChipTier {
  */
 export async function getProducts(brandHandle?: string): Promise<Product[]> {
   const supabase = getSupabaseServerClient();
-  const normalized = (brandHandle || (IS_MOCK_ENABLED ? "forge-collective" : ""))
+  const normalized = (brandHandle || "")
     .toLowerCase()
     .replace(/^@/, "");
 
@@ -63,11 +63,15 @@ export async function getProducts(brandHandle?: string): Promise<Product[]> {
         return data.map((p: any) => {
           const rawSpec = p.hardware_spec || {};
           const spec = typeof rawSpec === "object" ? rawSpec : {};
+          const joinedBrands = p.product_lines?.brands;
+          const brandSlug = Array.isArray(joinedBrands)
+            ? joinedBrands[0]?.slug
+            : joinedBrands?.slug;
 
           return {
             id: p.id,
             sku: p.sku,
-            brandHandle: normalized,
+            brandHandle: brandSlug || normalized,
             productLineId: p.product_line_id || p.product_lines?.id || undefined,
             title: p.title,
             description: p.description || "",
@@ -88,7 +92,7 @@ export async function getProducts(brandHandle?: string): Promise<Product[]> {
               frequency: spec.frequency || "13.56 MHz (ISO 14443-A)",
               memoryCapacity: spec.memoryCapacity || "416 Bytes",
               tamperDetection: Boolean(spec.tamperDetection ?? true),
-              onChainContract: spec.onChainContract || "0x4f3E7a82B9611D9C942e067cFb68EbD7A849aB2",
+              onChainContract: spec.onChainContract || "",
             },
             makerNotes: p.maker_notes || "",
           };
@@ -168,7 +172,7 @@ export async function getProductById(idOrSku: string): Promise<Product | null> {
               frequency: spec.frequency || "13.56 MHz (ISO 14443-A)",
               memoryCapacity: spec.memoryCapacity || "416 Bytes",
               tamperDetection: Boolean(spec.tamperDetection ?? true),
-              onChainContract: spec.onChainContract || "0x4f3E7a82B9611D9C942e067cFb68EbD7A849aB2",
+              onChainContract: spec.onChainContract || "",
             },
             makerNotes: data.maker_notes || "",
           };

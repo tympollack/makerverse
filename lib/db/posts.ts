@@ -11,7 +11,7 @@ import {
  */
 export async function getShoppablePosts(brandHandle?: string): Promise<ShoppablePost[]> {
   const supabase = getSupabaseServerClient();
-  const normalized = (brandHandle || (IS_MOCK_ENABLED ? "forge-collective" : ""))
+  const normalized = (brandHandle || "")
     .toLowerCase()
     .replace(/^@/, "");
 

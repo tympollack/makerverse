@@ -1,8 +1,9 @@
 // components/__tests__/MakerOnboardingAndGetBent.test.tsx
 import React from "react";
 import { describe, it, expect } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { submitPilotApplication } from "@/app/actions/pilotApplication";
 import MakerOnboardingLandingPage from "@/app/page";
 import GetBentFlagshipDropPage from "@/app/(shop)/get-bent/page";
 import { InventoryManager } from "@/components/admin/InventoryManager";
@@ -36,7 +37,7 @@ describe("Task 1: Zero-State Rendering in Admin Modules", () => {
 });
 
 describe("Task 2: Public Maker & Artist Onboarding Page (app/page.tsx)", () => {
-  it("renders hero section, creator-first pricing, and 3-card architecture grid", () => {
+  it("renders simplified hero, live drops showcase, creator-first pricing, and 3-card how-it-works grid", () => {
     render(<MakerOnboardingLandingPage />);
 
     // Top Nav
@@ -53,17 +54,22 @@ describe("Task 2: Public Maker & Artist Onboarding Page (app/page.tsx)", () => {
     ).toBeInTheDocument();
     expect(
       screen.getByText(
-        /Sell, auction, and authenticate physical art, prints, and small-batch apparel—without forcing collectors to set up a crypto wallet\./i,
+        /Run timed 24-hour drops, sell in-person at your booth, and give every piece a tap-to-verify digital passport/i,
       ),
     ).toBeInTheDocument();
 
-    // 3-Card Architecture Grid
-    expect(screen.getByText("Tiered Hardware Validation")).toBeInTheDocument();
+    // Live Drops Showcase
     expect(
-      screen.getByText("Vanity Serials & Soft-Close Auctions"),
+      screen.getByText(/See Real Maker Drops Running on Makerverse/i),
+    ).toBeInTheDocument();
+
+    // 3-Card How It Works Grid (plain-language)
+    expect(screen.getByText("Tap-to-Verify Tags")).toBeInTheDocument();
+    expect(
+      screen.getByText(/Timed Drops & Custom Serials/i),
     ).toBeInTheDocument();
     expect(
-      screen.getByText("Object-Centric Following & Cozy Pins"),
+      screen.getByText(/Direct Collector Updates & Booth Pins/i),
     ).toBeInTheDocument();
 
     // Locked Fee Economics
@@ -81,24 +87,24 @@ describe("Task 2: Public Maker & Artist Onboarding Page (app/page.tsx)", () => {
     ).toBeInTheDocument();
   });
 
-  it("cycles NFC Passport Simulator states when 'Simulate NFC Tap' is clicked", async () => {
+  it("cycles plain-language NFC Passport Simulator states when 'Simulate NFC Tap' is clicked", async () => {
     const user = userEvent.setup();
     render(<MakerOnboardingLandingPage />);
 
     expect(
-      screen.getByText("Studio Mint · Ready on Booth Rack"),
+      screen.getByText("Studio Mint · Ready for First Buyer"),
     ).toBeInTheDocument();
 
     const tapBtn = screen.getByRole("button", { name: /Simulate NFC Tap/i });
     await user.click(tapBtn);
 
     expect(
-      screen.getByText("Collector Verified · Zero Crypto Wallet Friction"),
+      screen.getByText("Collector Claimed · Proof of Authenticity"),
     ).toBeInTheDocument();
 
     await user.click(tapBtn);
     expect(
-      screen.getByText("Resold 14 Months Later · Automated Creator Royalty"),
+      screen.getByText("Resold Later · Automatic Creator Royalty"),
     ).toBeInTheDocument();
   });
 
@@ -128,6 +134,65 @@ describe("Task 2: Public Maker & Artist Onboarding Page (app/page.tsx)", () => {
     expect(
       await screen.findByText(/Application Confirmed/i),
     ).toBeInTheDocument();
+  });
+
+  it("opens inline Founding Maker modal when 'Claim a Founding Maker Shop' is clicked and submits to intake", async () => {
+    const user = userEvent.setup();
+    render(<MakerOnboardingLandingPage />);
+
+    const ctaBtn = screen.getByRole("button", {
+      name: /Claim a Founding Maker Shop/i,
+    });
+    await user.click(ctaBtn);
+
+    const modal = screen.getByTestId("founding-maker-modal");
+    const modalScope = within(modal);
+
+    expect(
+      modalScope.getByRole("button", { name: /Submit Founding Shop Claim/i }),
+    ).toBeInTheDocument();
+
+    await user.type(
+      modalScope.getByLabelText(/Artist \/ Brand Name/i),
+      "Solstice Glassworks",
+    );
+    await user.selectOptions(
+      modalScope.getByLabelText(/Medium \/ Craft/i),
+      "Visual Art",
+    );
+    await user.type(
+      modalScope.getByLabelText(/Instagram \/ Portfolio Handle/i),
+      "@solsticeglass",
+    );
+    await user.type(
+      modalScope.getByLabelText(/Email/i),
+      "studio@solsticeglass.art",
+    );
+
+    await user.click(
+      modalScope.getByRole("button", { name: /Submit Founding Shop Claim/i }),
+    );
+
+    expect(
+      await modalScope.findByText(/Application Confirmed/i),
+    ).toBeInTheDocument();
+
+    await user.click(modalScope.getByRole("button", { name: "Close" }));
+    expect(
+      screen.queryByTestId("founding-maker-modal"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("rejects malformed email addresses cleanly in submitPilotApplication", async () => {
+    const res = await submitPilotApplication({
+      artistBrandName: "Test Studio",
+      mediumCraft: "Visual Art",
+      portfolioHandle: "@teststudio",
+      email: "not-an-email",
+    });
+
+    expect(res.success).toBe(false);
+    expect(res.error).toBe("VALIDATION_ERROR");
   });
 });
 

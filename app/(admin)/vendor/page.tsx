@@ -1,11 +1,8 @@
 // app/(admin)/vendor/page.tsx
-import { VendorOverviewClient } from "@/components/admin/VendorOverviewClient";
-import { getVendorEmailTelemetry } from "@/lib/db/emailTelemetry";
+import { AuthenticatedVendorDashboard } from "@/components/admin/AuthenticatedVendorViews";
 
 export const dynamic = "force-dynamic";
 
-export default async function VendorDashboardPage() {
-  const emailTelemetry = await getVendorEmailTelemetry();
-
-  return <VendorOverviewClient emailTelemetry={emailTelemetry} />;
+export default function VendorDashboardPage() {
+  return <AuthenticatedVendorDashboard />;
 }

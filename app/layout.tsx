@@ -1,8 +1,10 @@
 // app/layout.tsx
+import { Suspense } from "react";
 import type { Metadata } from "next";
 import { Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { cn } from "@/lib/utils";
+import { RouteProgressBar } from "@/components/ui/RouteProgressBar";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -40,6 +42,9 @@ export default function RootLayout({
           inter.className,
         )}
       >
+        <Suspense fallback={null}>
+          <RouteProgressBar />
+        </Suspense>
         {children}
       </body>
     </html>

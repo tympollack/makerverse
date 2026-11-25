@@ -1,6 +1,8 @@
 // app/(admin)/vendor/holds/page.tsx
-import { HoldEngineMonitor } from "@/components/admin/HoldEngineMonitor";
+import { AuthenticatedHoldMonitor } from "@/components/admin/AuthenticatedVendorViews";
+
+export const dynamic = "force-dynamic";
 
 export default function HoldsPage() {
-  return <HoldEngineMonitor />;
+  return <AuthenticatedHoldMonitor />;
 }

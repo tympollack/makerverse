@@ -1,6 +1,8 @@
 // app/(admin)/vendor/pos/page.tsx
-import { POSTerminal } from "@/components/admin/POSTerminal";
+import { AuthenticatedPosTerminal } from "@/components/admin/AuthenticatedVendorViews";
+
+export const dynamic = "force-dynamic";
 
 export default function POSPage() {
-  return <POSTerminal />;
+  return <AuthenticatedPosTerminal />;
 }

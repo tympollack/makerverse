@@ -1,7 +1,8 @@
 // components/__tests__/VendorEmailTelemetryUi.test.tsx
 import React from "react";
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
+import { NextRequest } from "next/server";
 
 const mockGetVendorEmailTelemetry = vi.fn();
 
@@ -19,14 +20,36 @@ import {
   aggregateEmailTelemetryRows,
   EMPTY_VENDOR_EMAIL_TELEMETRY,
 } from "@/lib/db/emailTelemetry";
+import { GET as getAdminEmailTelemetry } from "@/app/api/admin/email-telemetry/route";
 import { DropEmailTelemetryStrip } from "@/components/admin/DropEmailTelemetryStrip";
 import { FollowerReachCard } from "@/components/admin/FollowerReachCard";
 import { DropScheduleCalendar } from "@/components/admin/DropScheduleCalendar";
-import { VendorOverviewClient } from "@/components/admin/VendorOverviewClient";
+import { VendorDashboardClient } from "@/components/admin/VendorDashboardClient";
 import VendorDashboardPage from "@/app/(admin)/vendor/page";
 import type { ProductBatch } from "@/lib/drops/lifecycle";
 
 describe("TASK-MKR-VENDOR-EMAIL-TELEMETRY-UI: Email Telemetry Strip & Follower Reach Card", () => {
+  beforeEach(() => {
+    mockGetVendorEmailTelemetry.mockReset();
+  });
+
+  it("gates GET /api/admin/email-telemetry behind verifyAdminAuth", async () => {
+    const unauth = await getAdminEmailTelemetry(
+      new NextRequest("http://localhost:3000/api/admin/email-telemetry"),
+    );
+    expect(unauth.status).toBe(401);
+
+    mockGetVendorEmailTelemetry.mockResolvedValue(EMPTY_VENDOR_EMAIL_TELEMETRY);
+    const authed = await getAdminEmailTelemetry(
+      new NextRequest("http://localhost:3000/api/admin/email-telemetry?brand=get-bent", {
+        headers: { authorization: "Bearer demo_service_key" },
+      }),
+    );
+    expect(authed.status).toBe(200);
+    expect(mockGetVendorEmailTelemetry).toHaveBeenCalledWith({ brandHandle: "get-bent" });
+    expect(await authed.json()).toEqual({ telemetry: EMPTY_VENDOR_EMAIL_TELEMETRY });
+  });
+
   it("aggregates deduplicated email telemetry rates and subscriber reach cleanly", () => {
     const empty = aggregateEmailTelemetryRows({
       events: [],
@@ -230,7 +253,7 @@ describe("TASK-MKR-VENDOR-EMAIL-TELEMETRY-UI: Email Telemetry Strip & Follower R
     expect(screen.getByText(/Drop Alerts: 1 sent/i)).toBeInTheDocument();
   });
 
-  it("renders FollowerReachCard on /vendor dashboard server page", async () => {
+  it("renders FollowerReachCard inside VendorDashboardClient and VendorDashboardPage without unauth leaks", () => {
     const telemetry = aggregateEmailTelemetryRows({
       subscriptions: [
         { email: "collector@example.com", target_type: "brand", target_id: "brand_1" },
@@ -264,17 +287,24 @@ describe("TASK-MKR-VENDOR-EMAIL-TELEMETRY-UI: Email Telemetry Strip & Follower R
       ],
     });
 
-    mockGetVendorEmailTelemetry.mockResolvedValue(telemetry);
-    const pageEl = await VendorDashboardPage();
-    render(pageEl);
+    render(
+      <VendorDashboardClient
+        inventory={[]}
+        holds={[]}
+        transactions={[]}
+        batches={[]}
+        emailTelemetry={telemetry}
+      />,
+    );
 
     expect(
       screen.getByText(/Follower Reach & Drop Email Telemetry/i),
     ).toBeInTheDocument();
     expect(screen.getByText(/Founders Drop 001/i)).toBeInTheDocument();
 
-    // Also verify direct client rendering with zero state
-    render(<VendorOverviewClient emailTelemetry={EMPTY_VENDOR_EMAIL_TELEMETRY} />);
+    // Unauthenticated VendorDashboardPage renders zero-state without calling server DB
+    render(<VendorDashboardPage />);
+    expect(mockGetVendorEmailTelemetry).not.toHaveBeenCalled();
     expect(screen.getByText(/No drop alerts dispatched yet/i)).toBeInTheDocument();
   });
 });

@@ -27,3 +27,15 @@ export function relativeTime(timestamp: string | number): string {
   if (hours < 24) return `${hours}h ago`;
   return `${days}d ago`;
 }
+
+/** Extract up to 2 uppercase initials from a studio or brand display name */
+export function getBrandInitials(name: string): string {
+  const parts = name
+    .replace(/^@/, "")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+  if (parts.length === 0) return "MK";
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
+}
