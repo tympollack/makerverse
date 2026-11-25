@@ -15,6 +15,11 @@ import {
 import { FrostedCard } from "@/components/ui/FrostedCard";
 import { CountdownTimer } from "@/components/ui/CountdownTimer";
 import { QuickScheduleModal } from "@/components/admin/QuickScheduleModal";
+import { DropEmailTelemetryStrip } from "@/components/admin/DropEmailTelemetryStrip";
+import {
+  EMPTY_VENDOR_EMAIL_TELEMETRY,
+  type VendorEmailTelemetry,
+} from "@/lib/db/emailTelemetry";
 import {
   resolveBatchLifecycleStatus,
   detectFulfillmentOverlaps,
@@ -97,9 +102,11 @@ export interface ScheduleBrandOption {
 export function DropScheduleCalendar({
   initialBatches = MOCK_SCHEDULED_BATCHES,
   initialBrands = [],
+  initialEmailTelemetry = EMPTY_VENDOR_EMAIL_TELEMETRY,
 }: {
   initialBatches?: ProductBatch[];
   initialBrands?: ScheduleBrandOption[];
+  initialEmailTelemetry?: VendorEmailTelemetry;
 }) {
   const [batches, setBatches] = useState<ProductBatch[]>(initialBatches);
   const [availableBrands, setAvailableBrands] = useState<ScheduleBrandOption[]>(initialBrands);
@@ -414,6 +421,9 @@ export function DropScheduleCalendar({
         </div>
       )}
 
+      {/* Native Drop Email Telemetry Strip */}
+      <DropEmailTelemetryStrip telemetry={initialEmailTelemetry} />
+
       {/* Calendar Navigation & Legend */}
       <FrostedCard className="p-4 sm:p-5 space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -580,6 +590,14 @@ export function DropScheduleCalendar({
               const style = STATUS_STYLE[status];
               const targetMs = getCountdownTargetMs(batch);
               const hasOverlap = overlappingIds.has(batch.id);
+              const batchTelemetry = initialEmailTelemetry.byBatch[batch.id];
+              const hasBatchEmailMetrics = Boolean(
+                batchTelemetry &&
+                  (batchTelemetry.sent > 0 ||
+                    batchTelemetry.delivered > 0 ||
+                    batchTelemetry.bounced > 0 ||
+                    batchTelemetry.complained > 0),
+              );
 
               return (
                 <FrostedCard key={batch.id} className="p-4 space-y-3">
@@ -676,6 +694,17 @@ export function DropScheduleCalendar({
                       )}
                     </button>
                   </div>
+
+                  {hasBatchEmailMetrics && batchTelemetry && (
+                    <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-white/5 font-mono text-[10px] text-white/55">
+                      <span>Drop Alerts: {batchTelemetry.sent} sent</span>
+                      <div className="flex items-center gap-2.5">
+                        <span className="text-emerald-300">{batchTelemetry.deliveryRatePct}% deliv</span>
+                        <span className="text-[#22D3EE]">{batchTelemetry.openRatePct}% open</span>
+                        <span className="text-orange-300">{batchTelemetry.clickRatePct}% click</span>
+                      </div>
+                    </div>
+                  )}
                 </FrostedCard>
               );
             })}

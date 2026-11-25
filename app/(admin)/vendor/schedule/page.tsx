@@ -2,13 +2,15 @@
 import { DropScheduleCalendar } from "@/components/admin/DropScheduleCalendar";
 import { getVendorBatches } from "@/lib/db/batches";
 import { getAllBrands } from "@/lib/db/brands";
+import { getVendorEmailTelemetry } from "@/lib/db/emailTelemetry";
 
 export const dynamic = "force-dynamic";
 
 export default async function VendorSchedulePage() {
-  const [batches, brands] = await Promise.all([
+  const [batches, brands, emailTelemetry] = await Promise.all([
     getVendorBatches(),
     getAllBrands(),
+    getVendorEmailTelemetry(),
   ]);
 
   return (
@@ -19,6 +21,7 @@ export default async function VendorSchedulePage() {
         handle: b.handle,
         name: b.name,
       }))}
+      initialEmailTelemetry={emailTelemetry}
     />
   );
 }
