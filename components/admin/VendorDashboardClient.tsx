@@ -15,6 +15,11 @@ import { FrostedCard } from "@/components/ui/FrostedCard";
 import { MonoValue, PriceTag } from "@/components/ui/MonoValue";
 import { StatusBadge, ChipTierBadge } from "@/components/ui/StatusBadge";
 import { CountdownTimer } from "@/components/ui/CountdownTimer";
+import { FollowerReachCard } from "@/components/admin/FollowerReachCard";
+import {
+  EMPTY_VENDOR_EMAIL_TELEMETRY,
+  type VendorEmailTelemetry,
+} from "@/lib/db/emailTelemetry";
 import { resolveBatchLifecycleStatus, type ProductBatch } from "@/lib/drops/lifecycle";
 import type { HoldEntry, InventoryItem, POSTransaction } from "@/lib/mock/adminData";
 
@@ -23,6 +28,7 @@ interface VendorDashboardClientProps {
   holds: HoldEntry[];
   transactions: POSTransaction[];
   batches: ProductBatch[];
+  emailTelemetry?: VendorEmailTelemetry;
 }
 
 export function VendorDashboardClient({
@@ -30,6 +36,7 @@ export function VendorDashboardClient({
   holds,
   transactions,
   batches,
+  emailTelemetry = EMPTY_VENDOR_EMAIL_TELEMETRY,
 }: VendorDashboardClientProps) {
   const activeHoldsCount = holds.filter((h) => h.state === "ACTIVE_HOLD").length;
   const inStockCount = inventory.filter((i) => i.status !== "OUT_OF_STOCK").length;
@@ -123,6 +130,9 @@ export function VendorDashboardClient({
           </motion.div>
         ))}
       </div>
+
+      {/* Follower Reach & Native Drop Email Telemetry */}
+      <FollowerReachCard telemetry={emailTelemetry} />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Active holds preview */}

@@ -4,6 +4,10 @@
 import { useCallback, useEffect, useState } from "react";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { VendorDashboardClient } from "@/components/admin/VendorDashboardClient";
+import {
+  EMPTY_VENDOR_EMAIL_TELEMETRY,
+  type VendorEmailTelemetry,
+} from "@/lib/db/emailTelemetry";
 import { HoldEngineMonitor } from "@/components/admin/HoldEngineMonitor";
 import { POSTerminal } from "@/components/admin/POSTerminal";
 import { BoothEngine } from "@/components/admin/BoothEngine";
@@ -33,6 +37,9 @@ export function AuthenticatedVendorDashboard() {
   const [holds, setHolds] = useState<HoldEntry[]>([]);
   const [transactions, setTransactions] = useState<POSTransaction[]>([]);
   const [batches, setBatches] = useState<ProductBatch[]>([]);
+  const [emailTelemetry, setEmailTelemetry] = useState<VendorEmailTelemetry>(
+    EMPTY_VENDOR_EMAIL_TELEMETRY,
+  );
 
   useEffect(() => {
     if (typeof fetch !== "function") return;
@@ -43,11 +50,12 @@ export function AuthenticatedVendorDashboard() {
       if (!token || !active) return;
       const headers = { Authorization: `Bearer ${token}` };
 
-      const [invRes, holdsRes, posRes, dropsRes] = await Promise.all([
+      const [invRes, holdsRes, posRes, dropsRes, telemetryRes] = await Promise.all([
         fetch("/api/admin/inventory", { headers }).then((r) => (r.ok ? r.json() : null)).catch(() => null),
         fetch("/api/admin/holds", { headers }).then((r) => (r.ok ? r.json() : null)).catch(() => null),
         fetch("/api/admin/pos", { headers }).then((r) => (r.ok ? r.json() : null)).catch(() => null),
         fetch("/api/drops?mode=all", { headers }).then((r) => (r.ok ? r.json() : null)).catch(() => null),
+        fetch("/api/admin/email-telemetry", { headers }).then((r) => (r.ok ? r.json() : null)).catch(() => null),
       ]);
 
       if (!active) return;
@@ -55,6 +63,7 @@ export function AuthenticatedVendorDashboard() {
       if (Array.isArray(holdsRes?.holds)) setHolds(holdsRes.holds);
       if (Array.isArray(posRes?.transactions)) setTransactions(posRes.transactions);
       if (Array.isArray(dropsRes?.batches)) setBatches(dropsRes.batches);
+      if (telemetryRes?.telemetry) setEmailTelemetry(telemetryRes.telemetry);
     }
 
     void load();
@@ -69,6 +78,7 @@ export function AuthenticatedVendorDashboard() {
       holds={holds}
       transactions={transactions}
       batches={batches}
+      emailTelemetry={emailTelemetry}
     />
   );
 }
